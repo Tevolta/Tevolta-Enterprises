@@ -1,0 +1,18 @@
+
+{
+  "short_name": "Tevolta ERP",
+  "name": "Tevolta Enterprises ERP",
+  "description": "GST Order and Inventory Management for Tevolta Enterprises",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2921/2921222.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#050a30",
+  "background_color": "#ffffff"
+}
