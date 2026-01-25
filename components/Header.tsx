@@ -27,11 +27,11 @@ const Header: React.FC<HeaderProps> = ({
     switch(syncStatus) {
       case 'testing':
         return { 
-          bg: 'bg-amber-50', 
-          border: 'border-amber-200', 
-          dot: 'bg-amber-500', 
-          text: 'text-amber-700', 
-          label: 'Local Mode (No Cloud)' 
+          bg: 'bg-red-50', 
+          border: 'border-red-200', 
+          dot: 'bg-red-500', 
+          text: 'text-red-700', 
+          label: 'NOT SYNCED - Connect Cloud' 
         };
       case 'synced':
         return { 
@@ -39,7 +39,7 @@ const Header: React.FC<HeaderProps> = ({
           border: 'border-green-100', 
           dot: 'bg-green-500', 
           text: 'text-green-700', 
-          label: fileName || 'Synced' 
+          label: fileName || 'Cloud Synced' 
         };
       case 'pending-permission':
         return { 
@@ -47,7 +47,7 @@ const Header: React.FC<HeaderProps> = ({
           border: 'border-blue-200', 
           dot: 'bg-blue-500 animate-pulse', 
           text: 'text-blue-700', 
-          label: 'Syncing Data...' 
+          label: 'Syncing to Cloud...' 
         };
       case 'error':
         return { 
@@ -77,7 +77,7 @@ const Header: React.FC<HeaderProps> = ({
         {!isSidebarOpen && (
           <button 
             onClick={toggleSidebar}
-            className="p-2.5 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-xl transition-all shadow-sm group"
+            className="p-2.5 bg-[#050a30] text-white rounded-xl transition-all shadow-lg hover:bg-blue-600 group"
             title="Open Menu"
           >
             <div className="space-y-1">
@@ -87,15 +87,15 @@ const Header: React.FC<HeaderProps> = ({
             </div>
           </button>
         )}
-        <Logo showText={false} className="h-6 opacity-80" />
-        <h2 className="text-2xl font-black text-slate-800 tracking-tight">{title}</h2>
+        <Logo showText={false} className="h-7 text-[#050a30]" />
+        <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase">{title}</h2>
       </div>
       
       <div className="flex items-center space-x-6">
         <div 
           onClick={isCloud ? onRefresh : (isAdmin ? onConnect : undefined)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all cursor-pointer group hover:shadow-md ${config.bg} ${config.border}`}
-          title={isCloud ? "Click to reload from cloud" : "Click to connect cloud"}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all cursor-pointer group hover:shadow-md ${config.bg} ${config.border}`}
+          title={isCloud ? "Click to refresh from cloud" : "Click to connect to Google Cloud"}
         >
           <span className={`w-2 h-2 rounded-full ${config.dot}`}></span>
           <span className={`text-[10px] font-black uppercase tracking-widest truncate max-w-[200px] ${config.text}`}>
@@ -109,14 +109,6 @@ const Header: React.FC<HeaderProps> = ({
         <div className="h-6 w-[1px] bg-slate-200"></div>
 
         <div className="flex items-center space-x-4">
-          <a 
-            href="https://ai.google.dev/gemini-api/docs/billing" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-[9px] font-black text-slate-400 hover:text-blue-600 uppercase tracking-widest hidden sm:block"
-          >
-            Billing Info ↗
-          </a>
           <button className="relative p-2 text-slate-500 hover:text-blue-600 transition-colors">
             🔔
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>

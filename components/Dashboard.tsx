@@ -49,9 +49,9 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, products, lowStockThresho
             <h3 className="text-xl font-black text-slate-800 tracking-tight uppercase">Sales Growth</h3>
             <span className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">Last 7 Days</span>
           </div>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={salesData}>
+          <div className="h-72 w-full overflow-hidden" style={{ minHeight: '288px', minWidth: '0' }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <AreaChart data={salesData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>

@@ -4,7 +4,7 @@ export type UserRole = 'admin' | 'employee';
 export interface User {
   id: string;
   username: string;
-  password?: string; // Stored locally for this desktop simulation
+  password?: string;
   role: UserRole;
   firstName: string;
   lastName: string;
@@ -21,6 +21,8 @@ export interface CompanyConfig {
   email: string;
   tagline: string;
   stateCode: string;
+  sharedDriveId?: string;
+  invoiceSequence: number; // New field for incremental serials
 }
 
 export interface SupplierMapping {
@@ -42,6 +44,7 @@ export interface Product {
   name: string;
   category: string;
   price: number;
+  costPrice: number; 
   stock: number;
   description: string;
   gstRate: number;
@@ -50,10 +53,12 @@ export interface Product {
 }
 
 export interface OrderItem {
+  id: string; // Mandatory unique ID for line items
   productId: string;
   name: string;
   quantity: number;
   unitPrice: number;
+  costPrice: number; 
   gstRate: number;
   taxAmount: number;
   hsnCode?: string;
@@ -63,6 +68,7 @@ export type OrderStatus = 'Pending' | 'Completed' | 'Cancelled' | 'Shipped';
 
 export interface Order {
   id: string;
+  serialNumber: string; // Persistent human-readable serial
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -79,25 +85,37 @@ export interface Order {
   notes: string;
 }
 
+export interface PurchaseOrderItem {
+  id: string; // Mandatory ID for precise tracking
+  supplierSku: string;
+  tevoltaSku: string;
+  name: string;
+  quantity: number;
+  costPerUnit: number;
+  watts: string;
+  totalForeign: number;
+}
+
+export type NatureOfPurchase = 'Stock' | 'Other';
+
 export interface PurchaseOrder {
   id: string;
   supplierName: string;
+  country: string;
+  natureOfPurchase: NatureOfPurchase;
+  invoiceRef: string;
   date: string;
-  items: {
-    sku?: string;
-    name: string;
-    quantity: number;
-    costPerUnit: number;
-    currency: 'USD' | 'CNY' | 'INR';
-    watts?: string;
-    isMapped?: boolean;
-  }[];
+  items: PurchaseOrderItem[];
+  currency: 'USD' | 'CNY' | 'INR';
   exchangeRate: number;
+  extraFee: number;
+  extraFeeRemarks: string;
+  depositAmount: number;
+  remainingBalance: number;
   totalForeignAmount: number;
-  totalInrAmount: number;
+  investmentInr: number;
   totalQuantity: number;
-  invoiceUrl?: string;
-  status: 'Draft' | 'Confirmed';
+  status: 'Draft' | 'Logged' | 'Confirmed'; 
 }
 
 export enum ViewType {
