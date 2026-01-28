@@ -99,6 +99,22 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
 
+      {/* Git Troubleshooting */}
+      <div className="bg-red-50 p-8 rounded-[2.5rem] border border-red-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-4">
+           <div className="w-10 h-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center text-xl">🚀</div>
+           <div>
+              <h3 className="text-lg font-black text-red-900 uppercase">Git Saving Tips</h3>
+              <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">Fix for "Something went wrong" errors</p>
+           </div>
+        </div>
+        <div className="space-y-2 text-xs font-bold text-red-700">
+           <p>• If saving to GitHub fails, DELETE the <code className="bg-red-200 px-1 rounded">.github</code> folder from AI Studio explorer first.</p>
+           <p>• Only Stage and Commit the app files (index.html, App.tsx, etc).</p>
+           <p>• Add the Workflow file manually on GitHub.com after your first successful save.</p>
+        </div>
+      </div>
+
       {/* Stock Preferences Section */}
       <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
         <div className="flex items-center gap-4 mb-2">

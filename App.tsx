@@ -21,7 +21,7 @@ import { encryptPassword, decryptPassword } from './services/encryptionService';
 
 const GOOGLE_CLIENT_ID = '539446901811-0hp5dapa6thge75qtn6psm189vs3ucuf.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
-const APP_VERSION = 'v3.6.0-secure';
+const APP_VERSION = 'v3.6.1-stable';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -118,7 +118,6 @@ const App: React.FC = () => {
         localStorage.setItem('tevolta_gdrive_file_id', cloudFileId.current);
       }
 
-      // ENCRYPT PASSWORDS BEFORE UPLOAD
       const encryptedUsers = users.map(u => ({
         ...u,
         password: encryptPassword(u.password)
@@ -129,7 +128,7 @@ const App: React.FC = () => {
         products, orders, purchaseOrders, pendingInventory, 
         companyConfig, supplierMappings, wattMappings, lowStockThreshold, 
         lastUpdated: new Date().toISOString(),
-        schemaVersion: '3.6.0'
+        schemaVersion: '3.6.1'
       };
       await uploadToDrive(token, cloudFileId.current, payload);
     } catch (error) {
@@ -150,7 +149,6 @@ const App: React.FC = () => {
       localStorage.setItem('tevolta_gdrive_file_id', fileId);
       const cloudData = await downloadFromDrive(token, fileId);
       if (cloudData) {
-        // DECRYPT PASSWORDS AFTER DOWNLOAD
         if (cloudData.users) {
           const decryptedUsers = cloudData.users.map((u: User) => ({
             ...u,
@@ -310,7 +308,6 @@ const App: React.FC = () => {
     const po = pendingInventory.find(p => p.id === poId);
     if (!po) return;
 
-    // VALIDATION: Check if all items exist in the catalog
     const missingItems = po.items.filter(item => 
       !products.some(p => p.id.toLowerCase() === (item.tevoltaSku || '').toLowerCase())
     );
@@ -318,7 +315,7 @@ const App: React.FC = () => {
     if (missingItems.length > 0) {
       const missingList = missingItems.map(m => m.tevoltaSku || 'Unknown').join(', ');
       showToast(`FAILED: Missing SKUs [${missingList}] must be registered first!`, "error");
-      return; // DO NOT remove from queue
+      return; 
     }
 
     setProducts(prev => prev.map(p => {
