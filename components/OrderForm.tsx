@@ -9,7 +9,7 @@ interface OrderFormProps {
 }
 
 const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) => {
-  const [customer, setCustomer] = useState({ name: '', email: '', phone: '', gstin: '', notes: '' });
+  const [customer, setCustomer] = useState({ name: '', email: '', phone: '', address: '', gstin: '', notes: '' });
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   
@@ -108,10 +108,11 @@ const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) =
     
     const newOrder: Order = {
       id: Math.random().toString(36).substr(2, 6).toUpperCase(),
-      serialNumber: '', // Handled by App.tsx during state update to ensure sequence
+      serialNumber: '', 
       customerName: customer.name,
       customerEmail: customer.email,
       customerPhone: customer.phone,
+      customerAddress: customer.address,
       customerGstin: customer.gstin,
       date: new Date().toISOString(),
       items: [...cart], 
@@ -217,6 +218,10 @@ const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) =
                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
                  <input required placeholder="8096..." className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} />
                </div>
+             </div>
+             <div className="space-y-1">
+                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Customer Address</label>
+                <textarea rows={2} placeholder="House No, Street, City..." className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold resize-none" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} />
              </div>
              <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Email (For Cloud Sync)</label>

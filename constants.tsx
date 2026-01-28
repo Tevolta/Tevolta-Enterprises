@@ -31,9 +31,13 @@ export const INITIAL_COMPANY_CONFIG: CompanyConfig = {
   gstin: "36BAHPN9275Q1ZN",
   phone: "+91 98765 43210",
   email: "billing@tevolta.in",
-  tagline: "Electricals & Home Appliances",
+  tagline: "Electricals & Home Needs",
   stateCode: "Telangana (36)",
-  invoiceSequence: 1001 // Start sequence
+  invoiceSequence: 1001,
+  bankName: "State Bank of India",
+  bankIfsc: "SBIN0000001",
+  bankAccountNo: "329XXXXXX010",
+  bankAccountHolder: "Tevolta Enterprises"
 };
 
 export const APP_THEME = {

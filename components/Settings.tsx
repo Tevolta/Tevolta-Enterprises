@@ -38,8 +38,6 @@ const Settings: React.FC<SettingsProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingConfig, setEditingConfig] = useState<CompanyConfig>(companyConfig);
-  const [testResults, setTestResults] = useState<{name: string, status: 'PASS' | 'FAIL' | 'IDLE'}[]>([]);
-  const [isRunningTests, setIsRunningTests] = useState(false);
 
   useEffect(() => {
     setEditingConfig(companyConfig);
@@ -172,6 +170,16 @@ const Settings: React.FC<SettingsProps> = ({
             <ProfileField label="Contact Phone" name="phone" value={isEditing ? editingConfig.phone : companyConfig.phone} isEditing={isEditing} onChange={handleConfigChange} />
             <ProfileField label="Corporate Email" name="email" value={isEditing ? editingConfig.email : companyConfig.email} isEditing={isEditing} onChange={handleConfigChange} />
             <ProfileField label="Next Manual Serial" name="invoiceSequence" value={String(isEditing ? editingConfig.invoiceSequence : companyConfig.invoiceSequence)} isEditing={isEditing} onChange={handleConfigChange} type="number" />
+            
+            <div className="col-span-1 md:col-span-2 mt-4 pt-4 border-t border-slate-100">
+               <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.3em] mb-4">Bank & Remittance Information</h4>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  <ProfileField label="Bank Name" name="bankName" value={isEditing ? editingConfig.bankName || '' : companyConfig.bankName || ''} isEditing={isEditing} onChange={handleConfigChange} />
+                  <ProfileField label="IFSC Code" name="bankIfsc" value={isEditing ? editingConfig.bankIfsc || '' : companyConfig.bankIfsc || ''} isEditing={isEditing} onChange={handleConfigChange} />
+                  <ProfileField label="Account Number" name="bankAccountNo" value={isEditing ? editingConfig.bankAccountNo || '' : companyConfig.bankAccountNo || ''} isEditing={isEditing} onChange={handleConfigChange} />
+                  <ProfileField label="Account Holder" name="bankAccountHolder" value={isEditing ? editingConfig.bankAccountHolder || '' : companyConfig.bankAccountHolder || ''} isEditing={isEditing} onChange={handleConfigChange} />
+               </div>
+            </div>
           </div>
         </div>
       )}

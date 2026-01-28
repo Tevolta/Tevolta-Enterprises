@@ -1,5 +1,5 @@
 {
-  "name": "Tevolta Enterprises - GST Order Manager",
+  "name": "Tevolta Enterprises -Order Manager",
   "description": "A comprehensive local desktop application for Tevolta Enterprises, an Indian electrical and appliance company, to manage inventory, track orders, and generate GST-compliant professional invoices without an external server.",
   "requestFramePermissions": [
     "camera"

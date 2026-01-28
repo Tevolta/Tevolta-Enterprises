@@ -22,7 +22,11 @@ export interface CompanyConfig {
   tagline: string;
   stateCode: string;
   sharedDriveId?: string;
-  invoiceSequence: number; // New field for incremental serials
+  invoiceSequence: number; 
+  bankName?: string;
+  bankIfsc?: string;
+  bankAccountNo?: string;
+  bankAccountHolder?: string;
 }
 
 export interface SupplierMapping {
@@ -53,7 +57,7 @@ export interface Product {
 }
 
 export interface OrderItem {
-  id: string; // Mandatory unique ID for line items
+  id: string; 
   productId: string;
   name: string;
   quantity: number;
@@ -68,10 +72,11 @@ export type OrderStatus = 'Pending' | 'Completed' | 'Cancelled' | 'Shipped';
 
 export interface Order {
   id: string;
-  serialNumber: string; // Persistent human-readable serial
+  serialNumber: string; 
   customerName: string;
   customerEmail: string;
   customerPhone: string;
+  customerAddress?: string;
   customerGstin?: string;
   date: string;
   items: OrderItem[];
@@ -86,7 +91,7 @@ export interface Order {
 }
 
 export interface PurchaseOrderItem {
-  id: string; // Mandatory ID for precise tracking
+  id: string; 
   supplierSku: string;
   tevoltaSku: string;
   name: string;
