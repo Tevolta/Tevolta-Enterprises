@@ -5,26 +5,46 @@ import { Order, Product } from "../types";
 export const getBusinessInsights = async (orders: Order[], inventory: Product[], prompt: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const context = `
-    You are a professional business analyst for an Indian electrical and home appliance company named "Tevolta Enterprises".
-    Current Inventory: ${JSON.stringify(inventory.map(p => ({ name: p.name, stock: p.stock, price: p.price, hsn: p.hsnCode, watts: p.watts })))}
-    Order History Summary: ${JSON.stringify(orders.map(o => ({ total: o.totalAmount, tax: o.totalTax, date: o.date, items: o.items.length })))}
+  // Summarize data to avoid payload size issues and timeouts
+  const summarizedInventory = inventory.slice(0, 30).map(p => ({
+    sku: p.id,
+    name: p.name,
+    stock: p.stock,
+    price: p.price,
+    watts: p.watts
+  }));
+
+  const summarizedOrders = orders.slice(0, 20).map(o => ({
+    total: o.totalAmount,
+    date: o.date,
+    itemCount: o.items.length
+  }));
+
+  const contextText = `
+    You are a professional business analyst for "Tevolta Enterprises", an Indian electrical company.
+    Total SKU Count: ${inventory.length}
+    Total Orders in System: ${orders.length}
     
-    The user is asking: "${prompt}"
+    RECENT INVENTORY SNAPSHOT (Top 30):
+    ${JSON.stringify(summarizedInventory)}
     
-    Provide a concise, professional answer focusing on sales trends, inventory alerts, or business growth suggestions.
+    RECENT SALES HISTORY (Last 20):
+    ${JSON.stringify(summarizedOrders)}
+    
+    User Query: "${prompt}"
+    
+    Provide a concise, expert response in 2-3 short paragraphs. Focus on trends, stock risks, or profit opportunities.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: context,
+      contents: [{ parts: [{ text: contextText }] }],
     });
-    // Fix: response.text is a property getter, not a method
     return response.text || "I'm sorry, I couldn't generate an insight at this moment.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Error connecting to AI advisor.";
+    return "The AI service is currently experiencing a timeout or connection issue. Please try a simpler question or check your internet connection.";
   }
 };
 
@@ -32,40 +52,34 @@ export const extractSupplierData = async (fileBase64: string, mimeType: string) 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
-    ACT AS A HIGH-PRECISION FINANCIAL EXTRACTION ENGINE FOR ELECTRICAL APPLIANCES. 
-    Analyze the attached invoice and extract data into a STRICT JSON format.
+    ACT AS A HIGH-PRECISION FINANCIAL EXTRACTION ENGINE. 
+    Analyze the attached invoice and extract data into STRICT JSON format.
 
     TARGET JSON STRUCTURE:
     {
       "supplierName": string,
       "date": string (YYYY-MM-DD),
       "currency": "USD" | "CNY" | "INR",
-      "totalAmount": number (Grand total in invoice currency),
-      "deposit": number (Amount paid as advance),
+      "totalAmount": number,
+      "deposit": number,
       "remainingBalance": number,
-      "exchangeRate": number (Suggest: 83 for USD, 12 for CNY),
+      "exchangeRate": number,
       "items": [
         { 
-          "supplierSku": string (The ID given by the supplier/manufacturer), 
-          "name": string (Description of the appliance), 
-          "watts": string (Power rating e.g., "50W"),
+          "supplierSku": string, 
+          "name": string, 
+          "watts": string,
           "quantity": number, 
-          "price": number (Unit cost in invoice currency)
+          "price": number
         }
       ]
     }
-
-    CRITICAL INSTRUCTIONS:
-    1. Look for "¥" or "RMB" -> Currency MUST be "CNY".
-    2. Look for "$" -> Currency MUST be "USD".
-    3. Extract the "Watts" if mentioned in product description.
-    4. RETURN ONLY THE JSON OBJECT.
+    RETURN ONLY THE JSON OBJECT.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      // Fix: Always wrap multiple parts in a { parts: [...] } object per guidelines
       contents: {
         parts: [
           {
@@ -82,7 +96,6 @@ export const extractSupplierData = async (fileBase64: string, mimeType: string) 
       }
     });
 
-    // Fix: response.text is a property getter
     return JSON.parse(response.text || "{}");
   } catch (error) {
     console.error("AI Extraction Error:", error);

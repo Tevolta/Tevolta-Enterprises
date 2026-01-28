@@ -52,7 +52,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
     html, body { margin: 0; padding: 0; width: 210mm; height: 297mm; background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; font-family: 'Inter', sans-serif; }
     #print-wrapper { width: 210mm; height: 297mm; overflow: hidden; display: flex; flex-direction: column; background: white !important; position: relative; }
     
-    .content-layer { position: relative; z-index: 10; display: flex; flex-direction: column; height: 100%; }
+    .content-layer { position: relative; z-index: 10; display: flex; flex-direction: column; height: 100%; background: white !important; }
     
     .industrial-border { border-top: 12px solid #050a30 !important; }
     .zebra-row:nth-child(even) { background-color: #f8fafc !important; }
@@ -134,9 +134,9 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
         </button>
         <div className="flex flex-col sm:flex-row gap-3">
           <button onClick={handleCloudSync} disabled={syncing || synced} className={`px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 border ${synced ? 'bg-green-50 text-green-700 border-green-200 shadow-inner' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm'}`}>
-            {syncing ? '⌛ Archiving...' : synced ? '✅ Archived to Database' : '☁️ Cloud Sync (Required to Print)'}
+            {syncing ? '⌛ Archiving...' : synced ? '✅ Archived' : '☁️ Cloud Sync (Required)'}
           </button>
-          <button onClick={handlePrint} disabled={!synced} className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl flex items-center gap-3 transition-all ${synced ? 'bg-[#050a30] text-white hover:bg-blue-900' : 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none border border-slate-200'}`}>
+          <button onClick={handlePrint} disabled={!synced} className={`px-8 py-3 rounded-xl font-black text-xs uppercase tracking-[0.2em] shadow-xl flex items-center gap-3 transition-all ${synced ? 'bg-[#050a30] text-white hover:bg-blue-900' : 'bg-slate-100 text-slate-300 cursor-not-allowed border border-slate-200 shadow-none'}`}>
             <span>📄</span> Print Final Bill
           </button>
         </div>
@@ -146,7 +146,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
         <div id="invoice-content-inner" className="flex flex-col flex-1 h-full bg-white box-border relative industrial-border">
           
           {/* Header Section */}
-          <div className="px-10 py-10 flex justify-between items-center shrink-0 border-b border-slate-100">
+          <div className="px-10 py-10 flex justify-between items-center shrink-0 border-b border-slate-100 bg-white">
             <div className="flex items-center gap-6">
               <Logo variant="dark" className="h-12" showText={true} />
               <div className="w-px h-10 bg-slate-200"></div>
@@ -163,7 +163,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
             </div>
           </div>
 
-          <div className="p-10 flex-1 flex flex-col">
+          <div className="p-10 flex-1 flex flex-col bg-white">
             {/* Address & Meta Data */}
             <div className="grid grid-cols-2 gap-10 mb-10 shrink-0">
               <div className="space-y-4">
@@ -211,7 +211,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
             <div className="flex-1 mb-10">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b-2 border-slate-900 text-left">
+                  <tr className="border-b-2 border-slate-900 text-left bg-white">
                     <th className="pb-3 pl-2 text-[9px] font-black uppercase tracking-widest text-slate-900">#</th>
                     <th className="pb-3 text-[9px] font-black uppercase tracking-widest text-slate-900">Item & Description</th>
                     <th className="pb-3 text-[9px] font-black uppercase tracking-widest text-slate-900 text-center">HSN</th>
@@ -221,7 +221,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
                     <th className="pb-3 pr-2 text-[9px] font-black uppercase tracking-widest text-slate-900 text-right">Taxable Val.</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 bg-white">
                   {order.items.map((item, idx) => (
                     <tr key={item.id} className="zebra-row item-row">
                       <td className="py-4 pl-2 text-[10px] font-bold text-slate-400">{idx + 1}</td>
@@ -241,7 +241,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
             </div>
 
             {/* Final Totals & Remittance */}
-            <div className="grid grid-cols-2 gap-10 items-end shrink-0 mb-6">
+            <div className="grid grid-cols-2 gap-10 items-end shrink-0 mb-6 bg-white">
               <div className="space-y-6">
                 <div>
                   <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Amount in Words:</h4>
@@ -273,8 +273,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
               </div>
 
               <div className="space-y-4">
-                {/* Updated Totals Box Style to match Remittance Details */}
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-3">
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-3 shadow-none">
                   <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                     <span>Taxable Value (Subtotal)</span>
                     <span>₹{order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
@@ -316,7 +315,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
             </div>
 
             {/* Footer Sign-off */}
-            <div className="flex justify-between items-end gap-10 mt-auto shrink-0 border-t border-slate-100 pt-6">
+            <div className="flex justify-between items-end gap-10 mt-auto shrink-0 border-t border-slate-100 pt-6 bg-white">
               <div className="max-w-md">
                 <h4 className="text-[9px] font-black uppercase tracking-[0.2em] mb-2 text-slate-900">Legal Terms:</h4>
                 <ul className="text-[8px] text-slate-500 font-bold space-y-0.5 list-disc pl-4 italic">
@@ -334,7 +333,7 @@ const InvoiceView: React.FC<InvoiceViewProps> = ({ order, onBack, companyConfig,
           </div>
         </div>
       </div>
-      <div className="no-print h-10"></div>
+      <div className="no-print h-10 bg-slate-50"></div>
     </div>
   );
 };
