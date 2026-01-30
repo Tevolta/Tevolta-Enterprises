@@ -21,7 +21,7 @@ import { encryptPassword, decryptPassword } from './services/encryptionService';
 
 const GOOGLE_CLIENT_ID = '539446901811-0hp5dapa6thge75qtn6psm189vs3ucuf.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
-const APP_VERSION = 'v3.6.1-stable';
+const APP_VERSION = 'v3.7.0-cloud-first';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -107,6 +107,58 @@ const App: React.FC = () => {
     }
   };
 
+  /**
+   * Performs data fetch from cloud. 
+   * Used during the pre-login "Connection" phase.
+   */
+  const handleCloudConnect = async (token: string) => {
+    setIsSyncing(true);
+    showToast("Authenticating & Syncing...", "loading");
+    try {
+      const fileId = await findOrCreateDriveFile(token, companyConfig.sharedDriveId);
+      cloudFileId.current = fileId;
+      localStorage.setItem('tevolta_gdrive_file_id', fileId);
+      
+      const cloudData = await downloadFromDrive(token, fileId);
+      if (cloudData) {
+        if (cloudData.users) {
+          const decryptedUsers = cloudData.users.map((u: User) => ({
+            ...u,
+            password: decryptPassword(u.password)
+          }));
+          setUsers(decryptedUsers);
+        }
+        if (cloudData.products) setProducts(cloudData.products);
+        if (cloudData.orders) setOrders(cloudData.orders);
+        if (cloudData.purchaseOrders) setPurchaseOrders(cloudData.purchaseOrders);
+        if (cloudData.pendingInventory) setPendingInventory(cloudData.pendingInventory);
+        if (cloudData.companyConfig) setCompanyConfig(cloudData.companyConfig);
+        if (cloudData.supplierMappings) setSupplierMappings(cloudData.supplierMappings);
+        if (cloudData.wattMappings) setWattMappings(cloudData.wattMappings);
+        if (cloudData.lowStockThreshold) setLowStockThreshold(cloudData.lowStockThreshold);
+        
+        sessionStorage.setItem('gdrive_token', token);
+        sessionStorage.removeItem('tevolta_local_mode');
+        setIsCloudEnabled(true);
+        showToast("Cloud Connection Established");
+        return true;
+      }
+    } catch (error) {
+      console.error("Cloud Connection Error:", error);
+      showToast("Cloud sync failed. Check permissions.", "error");
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+    return false;
+  };
+
+  const handleManualRefresh = async () => {
+    const token = sessionStorage.getItem('gdrive_token');
+    if (!token || token === 'local') { showToast("Local Mode Active", "error"); return; }
+    await handleCloudConnect(token);
+  };
+
   const performCloudSync = useCallback(async () => {
     const token = sessionStorage.getItem('gdrive_token');
     if (!isCloudEnabled || !token || token === 'local') return;
@@ -128,7 +180,7 @@ const App: React.FC = () => {
         products, orders, purchaseOrders, pendingInventory, 
         companyConfig, supplierMappings, wattMappings, lowStockThreshold, 
         lastUpdated: new Date().toISOString(),
-        schemaVersion: '3.6.1'
+        schemaVersion: '3.7.0'
       };
       await uploadToDrive(token, cloudFileId.current, payload);
     } catch (error) {
@@ -138,42 +190,6 @@ const App: React.FC = () => {
     }
   }, [isCloudEnabled, users, products, orders, purchaseOrders, pendingInventory, companyConfig, supplierMappings, wattMappings, lowStockThreshold]);
 
-  const handleManualRefresh = async () => {
-    const token = sessionStorage.getItem('gdrive_token');
-    if (!token || token === 'local') { showToast("Local Mode Active", "error"); return; }
-    showToast("Synchronizing Data...", "loading");
-    setIsSyncing(true);
-    try {
-      const fileId = await findOrCreateDriveFile(token, companyConfig.sharedDriveId);
-      cloudFileId.current = fileId;
-      localStorage.setItem('tevolta_gdrive_file_id', fileId);
-      const cloudData = await downloadFromDrive(token, fileId);
-      if (cloudData) {
-        if (cloudData.users) {
-          const decryptedUsers = cloudData.users.map((u: User) => ({
-            ...u,
-            password: decryptPassword(u.password)
-          }));
-          setUsers(decryptedUsers);
-        }
-        if (cloudData.products) setProducts(cloudData.products);
-        if (cloudData.orders) setOrders(cloudData.orders);
-        if (cloudData.purchaseOrders) setPurchaseOrders(cloudData.purchaseOrders);
-        if (cloudData.pendingInventory) setPendingInventory(cloudData.pendingInventory);
-        if (cloudData.companyConfig) setCompanyConfig(cloudData.companyConfig);
-        if (cloudData.supplierMappings) setSupplierMappings(cloudData.supplierMappings);
-        if (cloudData.wattMappings) setWattMappings(cloudData.wattMappings);
-        if (cloudData.lowStockThreshold) setLowStockThreshold(cloudData.lowStockThreshold);
-        setIsCloudEnabled(true);
-        showToast("Sync Successful");
-      }
-    } catch (error) {
-      showToast("Sync Failed", "error");
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
   const reconnectGoogle = () => {
     try {
       // @ts-ignore
@@ -182,11 +198,7 @@ const App: React.FC = () => {
         scope: SCOPES,
         callback: async (response: any) => {
           if (response.access_token) {
-            sessionStorage.setItem('gdrive_token', response.access_token);
-            sessionStorage.removeItem('tevolta_local_mode');
-            setIsCloudEnabled(true);
-            showToast("Google Identity Reconnected");
-            handleManualRefresh();
+            handleCloudConnect(response.access_token);
           } else {
             showToast("Reconnection failed", "error");
           }
@@ -206,20 +218,9 @@ const App: React.FC = () => {
     return () => { if (syncTimeout.current) clearTimeout(syncTimeout.current); };
   }, [users, products, orders, purchaseOrders, pendingInventory, companyConfig, supplierMappings, wattMappings, lowStockThreshold, isCloudEnabled, performCloudSync]);
 
-  const handleLogin = (u: User, token: string | null) => {
+  const handleLogin = (u: User) => {
     setUser(u);
     sessionStorage.setItem('tevolta_active_user', JSON.stringify(u));
-    if (token) {
-      sessionStorage.setItem('gdrive_token', token);
-      sessionStorage.removeItem('tevolta_local_mode');
-      setIsCloudEnabled(true);
-      handleManualRefresh();
-    } else {
-      sessionStorage.setItem('gdrive_token', 'local');
-      sessionStorage.setItem('tevolta_local_mode', 'true');
-      setIsCloudEnabled(false);
-      showToast("Running in Local Mode");
-    }
   };
 
   const handleCreateOrder = (newOrder: Order) => {
@@ -361,7 +362,15 @@ const App: React.FC = () => {
   const hasLocalFlag = sessionStorage.getItem('tevolta_local_mode') === 'true';
 
   if (!user || (!hasCloudToken && !hasLocalFlag)) {
-    return <LoginPage onLogin={handleLogin} users={users} googleClientId={GOOGLE_CLIENT_ID} scopes={SCOPES} />;
+    return (
+      <LoginPage 
+        onLogin={handleLogin} 
+        onConnectCloud={handleCloudConnect}
+        users={users} 
+        googleClientId={GOOGLE_CLIENT_ID} 
+        scopes={SCOPES} 
+      />
+    );
   }
 
   return (
