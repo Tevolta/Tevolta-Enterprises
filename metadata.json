@@ -1,0 +1,7 @@
+{
+  "name": "Tevolta Enterprises - Standalone Desktop",
+  "description": "Enterprise Grade Standalone Workspace for Tevolta Enterprises. Managing electrical inventory, sales tracking, and GST-compliant invoicing without any external servers.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
