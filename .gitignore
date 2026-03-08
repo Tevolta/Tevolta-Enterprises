@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# GitHub Workflows
+.github/workflows/deploy.yml
+
+# Migration History
+migrated_prompt_history/

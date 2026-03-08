@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ViewType, Product, Order, User, CompanyConfig, SupplierMapping, WattMapping, PurchaseOrder, OrderItem } from './types';
+import { ViewType, Product, Order, User, CompanyConfig, SupplierMapping, WattMapping, PurchaseOrder, OrderItem, AppNotification, Expense, StockLog } from './types';
 import { INITIAL_PRODUCTS, INITIAL_USERS, INITIAL_COMPANY_CONFIG } from './constants';
 import Dashboard from './components/Dashboard';
 import OrdersList from './components/OrdersList';
@@ -16,12 +16,14 @@ import SupplierManager from './components/SupplierManager';
 import AdminUserManagement from './components/AdminUserManagement';
 import UserProfile from './components/UserProfile';
 import LoginPage from './components/LoginPage';
+import ExpenseTracker from './components/ExpenseTracker';
+import StockAuditLog from './components/StockAuditLog';
 import { findOrCreateDriveFile, uploadToDrive, downloadFromDrive } from './services/cloudStorageService';
 import { encryptPassword, decryptPassword } from './services/encryptionService';
 
 const GOOGLE_CLIENT_ID = '539446901811-0hp5dapa6thge75qtn6psm189vs3ucuf.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive';
-const APP_VERSION = 'v3.7.0-cloud-first';
+const APP_VERSION = 'v3.9.0-standalone-desktop';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
@@ -73,6 +75,14 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('tevolta_threshold');
     return saved ? Number(saved) : 500;
   });
+  const [expenses, setExpenses] = useState<Expense[]>(() => {
+    const saved = localStorage.getItem('tevolta_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [stockLogs, setStockLogs] = useState<StockLog[]>(() => {
+    const saved = localStorage.getItem('tevolta_stock_logs');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.DASHBOARD);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -81,6 +91,10 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<{ message: string, type: 'success' | 'error' | 'loading' } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastOrderWasNew, setLastOrderWasNew] = useState(false);
+  const [appNotifications, setAppNotifications] = useState<AppNotification[]>(() => {
+    const saved = localStorage.getItem('tevolta_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const cloudFileId = useRef<string | null>(localStorage.getItem('tevolta_gdrive_file_id'));
   const syncTimeout = useRef<any>(null);
@@ -98,7 +112,54 @@ const App: React.FC = () => {
     localStorage.setItem('tevolta_watt_mappings', JSON.stringify(wattMappings));
     localStorage.setItem('tevolta_threshold', lowStockThreshold.toString());
     localStorage.setItem('tevolta_cloud_enabled', isCloudEnabled.toString());
-  }, [users, products, orders, purchaseOrders, pendingInventory, companyConfig, supplierMappings, wattMappings, lowStockThreshold, isCloudEnabled]);
+    localStorage.setItem('tevolta_notifications', JSON.stringify(appNotifications));
+    localStorage.setItem('tevolta_expenses', JSON.stringify(expenses));
+    localStorage.setItem('tevolta_stock_logs', JSON.stringify(stockLogs));
+  }, [users, products, orders, purchaseOrders, pendingInventory, companyConfig, supplierMappings, wattMappings, lowStockThreshold, isCloudEnabled, appNotifications, expenses, stockLogs]);
+
+  const addNotification = useCallback((title: string, message: string, type: 'info' | 'warning' | 'success' | 'error' = 'info', actionView?: ViewType, staffName?: string) => {
+    const newNotif: AppNotification = {
+      id: Math.random().toString(36).substr(2, 9),
+      title,
+      message,
+      type,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+      actionView,
+      staffName
+    };
+    setAppNotifications(prev => [newNotif, ...prev].slice(0, 50)); // Keep last 50
+  }, []);
+
+  const logStockMovement = useCallback((productId: string, productName: string, change: number, type: StockLog['type'], referenceId: string) => {
+    const newLog: StockLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      productId,
+      productName,
+      change,
+      type,
+      timestamp: new Date().toISOString(),
+      referenceId,
+      staffName: user?.firstName || 'System'
+    };
+    setStockLogs(prev => [newLog, ...prev].slice(0, 500)); // Keep last 500 logs
+  }, [user]);
+
+  // Low Stock Monitoring
+  useEffect(() => {
+    const lowStockItems = products.filter(p => p.stock < lowStockThreshold);
+    if (lowStockItems.length > 0) {
+      const alreadyNotified = appNotifications.some(n => n.title === 'Low Stock Alert' && !n.isRead);
+      if (!alreadyNotified) {
+        addNotification(
+          'Low Stock Alert',
+          `${lowStockItems.length} items are running below threshold. Please review inventory.`,
+          'warning',
+          ViewType.INVENTORY
+        );
+      }
+    }
+  }, [products, lowStockThreshold, addNotification, appNotifications]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'loading' = 'success') => {
     setNotification({ message, type });
@@ -107,10 +168,49 @@ const App: React.FC = () => {
     }
   };
 
-  /**
-   * Performs data fetch from cloud. 
-   * Used during the pre-login "Connection" phase.
-   */
+  const handleExportData = () => {
+    const data = {
+      users, products, orders, purchaseOrders, pendingInventory,
+      companyConfig, supplierMappings, wattMappings, lowStockThreshold,
+      exportedAt: new Date().toISOString(),
+      version: APP_VERSION
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tevolta_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast("Local Backup Exported");
+  };
+
+  const handleImportData = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        if (data.products && data.orders) {
+          if (data.users) setUsers(data.users);
+          setProducts(data.products);
+          setOrders(data.orders);
+          if (data.purchaseOrders) setPurchaseOrders(data.purchaseOrders);
+          if (data.pendingInventory) setPendingInventory(data.pendingInventory);
+          if (data.companyConfig) setCompanyConfig(data.companyConfig);
+          if (data.supplierMappings) setSupplierMappings(data.supplierMappings);
+          if (data.wattMappings) setWattMappings(data.wattMappings);
+          if (data.lowStockThreshold) setLowStockThreshold(data.lowStockThreshold);
+          showToast("Database Restored Successfully");
+        } else {
+          showToast("Invalid backup file", "error");
+        }
+      } catch (err) {
+        showToast("Error reading file", "error");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleCloudConnect = async (token: string) => {
     setIsSyncing(true);
     showToast("Authenticating & Syncing...", "loading");
@@ -145,7 +245,7 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error("Cloud Connection Error:", error);
-      showToast("Cloud sync failed. Check permissions.", "error");
+      showToast("Cloud sync failed.", "error");
       return false;
     } finally {
       setIsSyncing(false);
@@ -167,6 +267,9 @@ const App: React.FC = () => {
     try {
       if (!cloudFileId.current) {
         cloudFileId.current = await findOrCreateDriveFile(token, companyConfig.sharedDriveId);
+      }
+      
+      if (cloudFileId.current) {
         localStorage.setItem('tevolta_gdrive_file_id', cloudFileId.current);
       }
 
@@ -182,7 +285,10 @@ const App: React.FC = () => {
         lastUpdated: new Date().toISOString(),
         schemaVersion: '3.7.0'
       };
-      await uploadToDrive(token, cloudFileId.current, payload);
+      
+      if (cloudFileId.current) {
+        await uploadToDrive(token, cloudFileId.current, payload);
+      }
     } catch (error) {
       console.error("Cloud Sync Failure:", error);
     } finally {
@@ -253,6 +359,7 @@ const App: React.FC = () => {
       return currentProducts.map(p => {
         const orderItem = finalOrder.items.find(item => item.productId === p.id);
         if (orderItem) {
+          logStockMovement(p.id, p.name, -orderItem.quantity, 'Sale', finalOrder.id);
           return { ...p, stock: p.stock - orderItem.quantity };
         }
         return p;
@@ -265,23 +372,34 @@ const App: React.FC = () => {
     setLastOrderWasNew(true);
     setCurrentView(ViewType.INVOICE);
     showToast(`Bill ${serialStr} Generated`);
+
+    if (!isAdmin && user) {
+      addNotification(
+        'New Invoice Generated',
+        `Staff ${user.firstName} generated invoice ${serialStr} for ${finalOrder.customerName}.`,
+        'info',
+        ViewType.ORDERS,
+        user.firstName
+      );
+    }
   };
 
   const handleDeleteOrder = (orderId: string) => {
     if (!isAdmin) {
-      showToast("Access Denied: Only Administrator can delete records.", "error");
+      showToast("Access Denied.", "error");
       return;
     }
 
     const orderToDelete = orders.find(o => o.id === orderId);
     if (!orderToDelete) return;
 
-    if (!confirm(`Permanently delete order ${orderToDelete.serialNumber || orderId}? This will restore ${orderToDelete.items.reduce((acc, i) => acc + i.quantity, 0)} units to stock.`)) return;
+    if (!confirm(`Permanently delete order ${orderToDelete.serialNumber || orderId}? Stock will be restored.`)) return;
 
     setProducts(currentProducts => {
       return currentProducts.map(p => {
         const orderItem = orderToDelete.items.find(item => item.productId === p.id);
         if (orderItem) {
+          logStockMovement(p.id, p.name, orderItem.quantity, 'Rollback', orderToDelete.id);
           return { ...p, stock: p.stock + orderItem.quantity };
         }
         return p;
@@ -289,19 +407,29 @@ const App: React.FC = () => {
     });
 
     setOrders(prev => prev.filter(o => o.id !== orderId));
-    showToast("Order Deleted & Stock Restored");
+    showToast("Order Deleted");
   };
 
   const handleAddToReview = (po: PurchaseOrder) => {
     if (po.natureOfPurchase === 'Other') {
       const confirmedPo: PurchaseOrder = { ...po, status: 'Confirmed' };
       setPurchaseOrders(prev => [confirmedPo, ...prev]);
-      showToast("Financial Record Confirmed.", "success");
+      showToast("Record Confirmed.", "success");
     } else {
       const loggedPo: PurchaseOrder = { ...po, status: 'Logged' };
       setPurchaseOrders(prev => [loggedPo, ...prev]);
       setPendingInventory(prev => [loggedPo, ...prev]);
-      showToast("Stock sent to Review Queue.", "success");
+      showToast("Stock sent to Review.", "success");
+    }
+
+    if (!isAdmin && user) {
+      addNotification(
+        'New Purchase Logged',
+        `Staff ${user.firstName} logged a new ${po.natureOfPurchase.toLowerCase()} purchase from ${po.supplierName}.`,
+        'info',
+        ViewType.SUPPLIER,
+        user.firstName
+      );
     }
   };
 
@@ -314,14 +442,14 @@ const App: React.FC = () => {
     );
 
     if (missingItems.length > 0) {
-      const missingList = missingItems.map(m => m.tevoltaSku || 'Unknown').join(', ');
-      showToast(`FAILED: Missing SKUs [${missingList}] must be registered first!`, "error");
+      showToast(`Missing SKUs found. Register them first.`, "error");
       return; 
     }
 
     setProducts(prev => prev.map(p => {
       const match = po.items.find(i => (i.tevoltaSku || '').toLowerCase() === p.id.toLowerCase());
       if (match) {
+        logStockMovement(p.id, p.name, Number(match.quantity), 'Purchase', po.id);
         const latestCost = Number(match.costPerUnit) * po.exchangeRate;
         return { 
           ...p, 
@@ -334,32 +462,101 @@ const App: React.FC = () => {
 
     setPurchaseOrders(prev => prev.map(p => p.id === poId ? { ...p, status: 'Confirmed' } : p));
     setPendingInventory(prev => prev.filter(p => p.id !== poId));
-    showToast(`Stock updated & Master Costs Refined.`);
+    showToast(`Stock updated.`);
   };
 
   const handleRevertImport = (poId: string) => {
     if (!isAdmin) {
-      showToast("Access Denied: Only Administrator can revert records.", "error");
+      showToast("Access Denied.", "error");
       return;
     }
 
     const po = purchaseOrders.find(p => p.id === poId);
-    if (!po || !confirm(`Rollback record ${po.id}? This will remove it from the Financial Ledger.`)) return;
+    if (!po || !confirm(`Rollback record ${po.id}?`)) return;
     
     if (po.status === 'Confirmed' && po.natureOfPurchase === 'Stock') {
       setProducts(prev => prev.map(p => {
         const match = po.items.find(i => (i.tevoltaSku || '').toLowerCase() === p.id.toLowerCase());
-        return match ? { ...p, stock: Math.max(0, p.stock - Number(match.quantity)) } : p;
+        if (match) {
+          logStockMovement(p.id, p.name, -Number(match.quantity), 'Rollback', po.id);
+          return { ...p, stock: Math.max(0, p.stock - Number(match.quantity)) };
+        }
+        return p;
       }));
     }
 
     setPurchaseOrders(prev => prev.filter(p => p.id !== poId));
     setPendingInventory(prev => prev.filter(p => p.id !== poId));
-    showToast("Record rolled back and removed.");
+    showToast("Record rolled back.");
   };
 
   const hasCloudToken = sessionStorage.getItem('gdrive_token') && sessionStorage.getItem('gdrive_token') !== 'local';
   const hasLocalFlag = sessionStorage.getItem('tevolta_local_mode') === 'true';
+
+  const handleAddProduct = (p: Product) => {
+    const exists = products.some(x => x.id.toLowerCase() === p.id.toLowerCase());
+    if (exists) {
+      showToast(`SKU ID ${p.id} already exists!`, "error");
+      return;
+    }
+    setProducts([...products, p]);
+    showToast(`Product ${p.id} registered.`);
+
+    if (!isAdmin && user) {
+      addNotification(
+        'New SKU Registered',
+        `Staff ${user.firstName} registered a new product: ${p.name} (${p.id}).`,
+        'success',
+        ViewType.INVENTORY,
+        user.firstName
+      );
+    }
+  };
+
+  const handleUpdateProduct = (p: Product, oldId?: string) => {
+    const targetId = oldId || p.id;
+    
+    // If ID changed, we need to update references in orders and purchases
+    if (oldId && oldId !== p.id) {
+      setOrders(prev => prev.map(o => ({
+        ...o,
+        items: o.items.map(item => item.productId === oldId ? { ...item, productId: p.id } : item)
+      })));
+      
+      setPurchaseOrders(prev => prev.map(po => ({
+        ...po,
+        items: po.items.map(item => item.tevoltaSku === oldId ? { ...item, tevoltaSku: p.id } : item)
+      })));
+      
+      setPendingInventory(prev => prev.map(po => ({
+        ...po,
+        items: po.items.map(item => item.tevoltaSku === oldId ? { ...item, tevoltaSku: p.id } : item)
+      })));
+      
+      showToast(`SKU ${oldId} renamed to ${p.id}. All records updated.`, "success");
+    }
+
+    setProducts(products.map(x => x.id === targetId ? p : x));
+
+    if (!isAdmin && user) {
+      addNotification(
+        'Product Updated',
+        `Staff ${user.firstName} updated product ${p.name} (${p.id}).`,
+        'info',
+        ViewType.INVENTORY,
+        user.firstName
+      );
+    }
+  };
+
+  const handleDeleteProduct = (id: string) => {
+    if (!isAdmin) {
+      showToast("Access Denied", "error");
+      return;
+    }
+    setProducts(products.filter(x => x.id !== id));
+    showToast("Product deleted.");
+  };
 
   if (!user || (!hasCloudToken && !hasLocalFlag)) {
     return (
@@ -385,17 +582,23 @@ const App: React.FC = () => {
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
           onRefresh={handleManualRefresh} 
           onConnect={reconnectGoogle}
+          notifications={appNotifications}
+          onMarkNotificationRead={(id) => setAppNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))}
+          onClearNotifications={() => setAppNotifications([])}
+          onNavigate={setCurrentView}
         />
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           <div className="max-w-7xl mx-auto space-y-6">
-            {currentView === ViewType.DASHBOARD && <Dashboard orders={orders} products={products} lowStockThreshold={lowStockThreshold} />}
+            {currentView === ViewType.DASHBOARD && <Dashboard orders={orders} products={products} expenses={expenses} lowStockThreshold={lowStockThreshold} />}
             {currentView === ViewType.ORDERS && <OrdersList orders={orders} onViewInvoice={(o) => { setSelectedOrder(o); setLastOrderWasNew(false); setCurrentView(ViewType.INVOICE); }} onDeleteOrder={handleDeleteOrder} onNewOrder={() => { setSelectedOrder(null); setLastOrderWasNew(false); setCurrentView(ViewType.INVOICE); }} isAdmin={isAdmin} />}
             {currentView === ViewType.GST && <GSTReports orders={orders} products={products} purchaseHistory={purchaseOrders} onRevertPurchase={handleRevertImport} />}
-            {currentView === ViewType.INVENTORY && <InventoryManager products={products} pendingInventory={pendingInventory} lowStockThreshold={lowStockThreshold} wattMappings={wattMappings} onUpdate={(p) => setProducts(products.map(x => x.id === p.id ? p : x))} onDelete={(id) => { if(!isAdmin) showToast("Access Denied", "error"); else setProducts(products.filter(x => x.id !== id)) }} onAdd={(p) => setProducts([...products, p])} onFinalizeReview={handleFinalizeInventoryReview} onUpdatePending={(po) => setPendingInventory(pendingInventory.map(p => p.id === po.id ? po : p))} onDeletePending={(id) => setPendingInventory(pendingInventory.filter(p => p.id !== id))} isAdmin={isAdmin} />}
+            {currentView === ViewType.INVENTORY && <InventoryManager products={products} pendingInventory={pendingInventory} lowStockThreshold={lowStockThreshold} wattMappings={wattMappings} onUpdate={(p, oldId) => handleUpdateProduct(p, oldId)} onDelete={handleDeleteProduct} onAdd={handleAddProduct} onFinalizeReview={handleFinalizeInventoryReview} onUpdatePending={(po) => setPendingInventory(pendingInventory.map(p => p.id === po.id ? po : p))} onDeletePending={(id) => setPendingInventory(pendingInventory.filter(p => p.id !== id))} isAdmin={isAdmin} />}
             {currentView === ViewType.SUPPLIER && isAdmin && <SupplierManager products={products} purchaseHistory={purchaseOrders} onAddToReview={handleAddToReview} onUpdatePurchase={(po) => setPurchaseOrders(prev => prev.map(p => p.id === po.id ? po : p))} onRollback={handleRevertImport} />}
+            {currentView === ViewType.EXPENSES && <ExpenseTracker expenses={expenses} onAdd={(e) => setExpenses([e, ...expenses])} onDelete={(id) => setExpenses(expenses.filter(x => x.id !== id))} user={user} isAdmin={isAdmin} />}
+            {currentView === ViewType.AUDIT_LOG && isAdmin && <StockAuditLog logs={stockLogs} onClear={() => setStockLogs([])} isAdmin={isAdmin} />}
             {currentView === ViewType.USER_MANAGEMENT && isAdmin && <AdminUserManagement users={users} onAddUser={(u) => setUsers([...users, u])} onUpdateUser={(u) => setUsers(users.map(x => x.id === u.id ? u : x))} onDeleteUser={(id) => setUsers(users.filter(x => x.id !== id))} />}
             {currentView === ViewType.INVOICE && (selectedOrder ? <InvoiceView order={selectedOrder} onBack={() => setCurrentView(ViewType.ORDERS)} companyConfig={companyConfig} autoPrint={lastOrderWasNew} /> : <OrderForm products={products} onSubmit={handleCreateOrder} onCancel={() => setCurrentView(ViewType.ORDERS)} />)}
-            {currentView === ViewType.SETTINGS && <Settings products={products} orders={orders} users={users} supplierMappings={supplierMappings} onUpdateMappings={setSupplierMappings} wattMappings={wattMappings} onUpdateWattMappings={setWattMappings} onDataImport={() => {}} syncStatus={hasCloudToken ? 'synced' : 'testing'} onOpenFile={handleManualRefresh} onReconnect={reconnectGoogle} isAdmin={isAdmin} lowStockThreshold={lowStockThreshold} onUpdateThreshold={setLowStockThreshold} companyConfig={companyConfig} onUpdateCompanyConfig={setCompanyConfig} version={APP_VERSION} />}
+            {currentView === ViewType.SETTINGS && <Settings products={products} orders={orders} users={users} supplierMappings={supplierMappings} onUpdateMappings={setSupplierMappings} wattMappings={wattMappings} onUpdateWattMappings={setWattMappings} onDataImport={() => {}} syncStatus={hasCloudToken ? 'synced' : 'testing'} onOpenFile={handleManualRefresh} onReconnect={reconnectGoogle} isAdmin={isAdmin} lowStockThreshold={lowStockThreshold} onUpdateThreshold={setLowStockThreshold} companyConfig={companyConfig} onUpdateCompanyConfig={setCompanyConfig} version={APP_VERSION} onExportData={handleExportData} onImportData={handleImportData} />}
           </div>
         </div>
         <AIAssistant orders={orders} inventory={products} />

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product, Order, User, CompanyConfig, SupplierMapping, WattMapping } from '../types';
 
 interface SettingsProps {
@@ -21,11 +21,17 @@ interface SettingsProps {
   companyConfig: CompanyConfig;
   onUpdateCompanyConfig: (config: CompanyConfig) => void;
   version?: string;
+  onExportData?: () => void;
+  onImportData?: (file: File) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
   products, 
   orders, 
+  supplierMappings,
+  onUpdateMappings,
+  wattMappings,
+  onUpdateWattMappings,
   syncStatus, 
   onOpenFile, 
   onReconnect,
@@ -34,10 +40,13 @@ const Settings: React.FC<SettingsProps> = ({
   onUpdateThreshold,
   companyConfig,
   onUpdateCompanyConfig,
-  version
+  version,
+  onExportData,
+  onImportData
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingConfig, setEditingConfig] = useState<CompanyConfig>(companyConfig);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setEditingConfig(companyConfig);
@@ -54,6 +63,12 @@ const Settings: React.FC<SettingsProps> = ({
       ...prev, 
       [name]: name === 'invoiceSequence' ? Number(value) : value 
     }));
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && onImportData) {
+      onImportData(e.target.files[0]);
+    }
   };
 
   const isLocal = syncStatus === 'testing';
@@ -99,6 +114,42 @@ const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
 
+      {/* Manual Data Control - Essential for Standalone Desktop */}
+      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+        <div className="flex items-center gap-4 mb-2">
+           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">💾</div>
+           <div>
+              <h3 className="text-lg font-black text-slate-800 uppercase">Data Portability</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Manual Export & Import (JSON Backups)</p>
+           </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Database Backup</h4>
+             <p className="text-[11px] text-slate-500 leading-relaxed italic">Download the entire local database to a file for backup or to move to another machine.</p>
+             <button 
+               onClick={onExportData}
+               className="w-full py-4 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all"
+             >
+               Export Database JSON
+             </button>
+          </div>
+
+          <div className="space-y-4 p-6 bg-slate-50 rounded-3xl border border-slate-100">
+             <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Restore Workspace</h4>
+             <p className="text-[11px] text-slate-500 leading-relaxed italic">Overwrite the current local database with data from a previously exported JSON file.</p>
+             <input type="file" accept=".json" ref={fileInputRef} className="hidden" onChange={handleFileImport} />
+             <button 
+               onClick={() => fileInputRef.current?.click()}
+               className="w-full py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+             >
+               Import/Restore JSON
+             </button>
+          </div>
+        </div>
+      </div>
+
       {/* Stock Preferences Section */}
       <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
         <div className="flex items-center gap-4 mb-2">
@@ -135,6 +186,85 @@ const Settings: React.FC<SettingsProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Master SKU Mapping Section */}
+      {isAdmin && (
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-8">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">🔌</div>
+            <div>
+              <h3 className="text-lg font-black text-slate-800 uppercase">Master SKU Intelligence</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Wattage & Supplier SKU Cross-Referencing</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* Wattage Mapping */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Wattage Mappings</h4>
+                <button 
+                  onClick={() => onUpdateWattMappings([...wattMappings, { id: Math.random().toString(36).substr(2, 9), tevoltaSku: '', watts: '' }])}
+                  className="text-[9px] font-black text-blue-600 uppercase hover:underline"
+                >
+                  + Add Mapping
+                </button>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                {wattMappings.map((m, idx) => (
+                  <div key={m.id} className="flex gap-2">
+                    <input 
+                      placeholder="SKU" 
+                      value={m.tevoltaSku} 
+                      onChange={(e) => onUpdateWattMappings(wattMappings.map((x, i) => i === idx ? { ...x, tevoltaSku: e.target.value } : x))}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
+                    />
+                    <input 
+                      placeholder="Watts" 
+                      value={m.watts} 
+                      onChange={(e) => onUpdateWattMappings(wattMappings.map((x, i) => i === idx ? { ...x, watts: e.target.value } : x))}
+                      className="w-24 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
+                    />
+                    <button onClick={() => onUpdateWattMappings(wattMappings.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-red-500">✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Supplier Mapping */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Supplier SKU Links</h4>
+                <button 
+                  onClick={() => onUpdateMappings([...supplierMappings, { id: Math.random().toString(36).substr(2, 9), supplierSku: '', supplierName: '', tevoltaSku: '', tevoltaName: '' }])}
+                  className="text-[9px] font-black text-blue-600 uppercase hover:underline"
+                >
+                  + Add Link
+                </button>
+              </div>
+              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                {supplierMappings.map((m, idx) => (
+                  <div key={m.id} className="flex gap-2">
+                    <input 
+                      placeholder="Supplier SKU" 
+                      value={m.supplierSku} 
+                      onChange={(e) => onUpdateMappings(supplierMappings.map((x, i) => i === idx ? { ...x, supplierSku: e.target.value } : x))}
+                      className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold outline-none"
+                    />
+                    <input 
+                      placeholder="Tevolta SKU" 
+                      value={m.tevoltaSku} 
+                      onChange={(e) => onUpdateMappings(supplierMappings.map((x, i) => i === idx ? { ...x, tevoltaSku: e.target.value } : x))}
+                      className="flex-1 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-[10px] font-black text-blue-600 outline-none"
+                    />
+                    <button onClick={() => onUpdateMappings(supplierMappings.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-red-500">✕</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isAdmin && (
         <div className={`bg-white p-8 rounded-[2.5rem] border-2 transition-all duration-300 ${isEditing ? 'border-blue-500 shadow-2xl shadow-blue-500/10' : 'border-slate-100 shadow-sm'}`}>

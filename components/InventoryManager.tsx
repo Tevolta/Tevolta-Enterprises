@@ -7,7 +7,7 @@ interface InventoryManagerProps {
   pendingInventory: PurchaseOrder[];
   lowStockThreshold: number;
   wattMappings: WattMapping[];
-  onUpdate: (p: Product) => void;
+  onUpdate: (p: Product, oldId?: string) => void;
   onDelete: (id: string) => void;
   onAdd: (p: Product) => void;
   onFinalizeReview: (poId: string) => void;
@@ -29,8 +29,9 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   onDeletePending,
   isAdmin
 }) => {
-  const [activeTab, setActiveTab] = useState<'stock' | 'preview'>('stock');
+  const [activeTab, setActiveTab] = useState<'stock' | 'preview' | 'console'>('stock');
   const [isAdding, setIsAdding] = useState(false);
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
   const [editItem, setEditItem] = useState<Product | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('Appliances');
 
@@ -64,6 +65,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     }
   };
 
+  const handleQuickUpdate = (productId: string, field: 'price' | 'costPrice', value: number) => {
+    const product = products.find(p => p.id === productId);
+    if (product) {
+      onUpdate({ ...product, [field]: value });
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
@@ -76,13 +84,19 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
           <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl">
             <button 
               onClick={() => setActiveTab('stock')}
-              className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'stock' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/5' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'stock' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/5' : 'text-slate-500 hover:text-slate-800'}`}
             >
               Active Stock ({products.length})
             </button>
             <button 
+              onClick={() => setActiveTab('console')}
+              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'console' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/5' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              Price Console
+            </button>
+            <button 
               onClick={() => setActiveTab('preview')}
-              className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'preview' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/5' : 'text-slate-500 hover:text-slate-800'}`}
+              className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative ${activeTab === 'preview' ? 'bg-white text-blue-600 shadow-md shadow-blue-500/5' : 'text-slate-500 hover:text-slate-800'}`}
             >
               Review Queue
               {pendingInventory.length > 0 && (
@@ -97,7 +111,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
       {activeTab === 'stock' ? (
         <div className="space-y-6">
-          <div className="flex justify-end">
+          <div className="flex gap-4">
+            <button 
+              onClick={() => setIsBulkImporting(true)}
+              className="px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+            >
+              Bulk Import (CSV)
+            </button>
             <button 
               onClick={() => { setIsAdding(true); setSelectedCategory('Appliances'); }}
               className="px-8 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-slate-200"
@@ -139,6 +159,63 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      ) : activeTab === 'console' ? (
+        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden animate-in slide-in-from-bottom-5">
+          <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <div>
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Price & Profit Console</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Bulk update selling and cost prices</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">SKU ID</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Product Name</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Selling Price (₹)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Cost Price (₹)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Profit (₹)</th>
+                  <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Margin (%)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {products.map(p => {
+                  const profit = p.price - p.costPrice;
+                  const margin = p.price > 0 ? (profit / p.price) * 100 : 0;
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-xs font-black text-slate-400">{p.id}</td>
+                      <td className="px-6 py-4 text-xs font-bold text-slate-800">{p.name}</td>
+                      <td className="px-6 py-4 text-right">
+                        <input 
+                          type="number" 
+                          value={p.price} 
+                          onChange={(e) => handleQuickUpdate(p.id, 'price', Number(e.target.value))}
+                          className="w-24 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-xs font-black text-right text-blue-700 outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <input 
+                          type="number" 
+                          value={p.costPrice} 
+                          onChange={(e) => handleQuickUpdate(p.id, 'costPrice', Number(e.target.value))}
+                          className="w-24 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-right text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </td>
+                      <td className={`px-6 py-4 text-right text-xs font-black ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ₹{profit.toLocaleString()}
+                      </td>
+                      <td className={`px-6 py-4 text-right text-xs font-black ${margin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {margin.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : (
@@ -244,6 +321,74 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
         </div>
       )}
 
+      {/* BULK IMPORT MODAL */}
+      {isBulkImporting && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">Bulk SKU Import</h3>
+              <button onClick={() => setIsBulkImporting(false)} className="text-slate-400 hover:text-red-500 font-black">✕</button>
+            </div>
+            
+            <div className="space-y-6">
+              <div className="p-8 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50 text-center">
+                <p className="text-xs font-bold text-slate-500 mb-4 uppercase tracking-widest">Upload CSV File</p>
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const text = event.target?.result as string;
+                      const lines = text.split('\n');
+                      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+                      
+                      const newProducts: Product[] = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        if (!lines[i].trim()) continue;
+                        const values = lines[i].split(',').map(v => v.trim());
+                        const p: any = {};
+                        headers.forEach((h, idx) => {
+                          if (h === 'sku' || h === 'id') p.id = values[idx];
+                          else if (h === 'name') p.name = values[idx];
+                          else if (h === 'category') p.category = values[idx];
+                          else if (h === 'price') p.price = Number(values[idx]);
+                          else if (h === 'costprice') p.costPrice = Number(values[idx]);
+                          else if (h === 'stock') p.stock = Number(values[idx]);
+                          else if (h === 'gstrate') p.gstRate = Number(values[idx]);
+                          else if (h === 'hsncode') p.hsnCode = values[idx];
+                          else if (h === 'watts') p.watts = values[idx];
+                          else if (h === 'description') p.description = values[idx];
+                        });
+                        if (p.id && p.name) newProducts.push(p as Product);
+                      }
+                      
+                      newProducts.forEach(prod => onAdd(prod));
+                      setIsBulkImporting(false);
+                    };
+                    reader.readAsText(file);
+                  }}
+                  className="hidden" 
+                  id="csv-upload"
+                />
+                <label htmlFor="csv-upload" className="px-6 py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-50 transition-all">
+                  Choose CSV File
+                </label>
+              </div>
+
+              <div className="bg-blue-50 p-6 rounded-2xl border border-blue-100">
+                <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Required CSV Columns:</h4>
+                <p className="text-[9px] font-bold text-blue-800/70 leading-relaxed">
+                  sku, name, category, price, costPrice, stock, gstRate, hsnCode, watts, description
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {(isAdding || editItem) && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-lg z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl border border-white/20 animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
@@ -262,7 +407,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 description: formData.get('description') as string,
                 watts: formData.get('watts') as string || undefined,
               };
-              if (editItem) onUpdate(data);
+              if (editItem) onUpdate(data, editItem.id);
               else onAdd(data);
               setIsAdding(false);
               setEditItem(null);
@@ -283,9 +428,9 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                       required 
                       name="sku" 
                       defaultValue={editItem?.id} 
-                      readOnly={!!editItem}
+                      readOnly={!!editItem && !isAdmin}
                       placeholder="e.g. TEV-50-001"
-                      className={`w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-black ${editItem ? 'opacity-50 cursor-not-allowed select-none' : ''}`} 
+                      className={`w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 font-black ${!!editItem && !isAdmin ? 'opacity-50 cursor-not-allowed select-none' : ''}`} 
                     />
                   </div>
                   <div className="space-y-1.5">

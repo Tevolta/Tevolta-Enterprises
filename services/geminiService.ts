@@ -3,11 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Order, Product } from "../types";
 
 /**
- * Utility to handle business intelligence queries using the stable Flash model.
- * gemini-flash-latest offers higher free-tier RPM (Requests Per Minute) than preview models.
+ * Utility to handle business intelligence queries using the Gemini 3 Pro model.
+ * 'gemini-3-pro-preview' is selected for complex business intelligence and data analysis tasks.
  */
 export const getBusinessInsights = async (orders: Order[], inventory: Product[], prompt: string) => {
-  // Initialize inside the function to ensure the latest API Key from process.env is used
+  // Initialize inside the function to ensure the latest API Key from process.env is used.
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   // Summarize data to stay within token limits and reduce latency
@@ -47,7 +47,7 @@ export const getBusinessInsights = async (orders: Order[], inventory: Product[],
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-pro-preview',
       contents: [{ parts: [{ text: contextText }] }],
     });
 
@@ -55,42 +55,28 @@ export const getBusinessInsights = async (orders: Order[], inventory: Product[],
   } catch (error: any) {
     console.error("Gemini BI Error:", error);
     
-    // Check specifically for Rate Limit / Quota errors (HTTP 429)
     if (error?.message?.includes('429') || error?.status === 429 || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-      return "NOTICE: The AI service has reached its free-tier limit for this minute. Please wait about 60 seconds and try your request again. For heavy usage, consider a paid API plan.";
+      return "NOTICE: The AI service has reached its free-tier limit for this minute. Please wait about 60 seconds and try your request again.";
     }
     
-    return "The AI service is temporarily unavailable due to a connection issue. Please check your internet or try again in a few moments.";
+    return "The AI service is temporarily unavailable. Please check your internet or try again in a few moments.";
   }
 };
 
 /**
- * Extracts structured JSON data from invoice images/PDFs.
+ * Extracts structured JSON data from invoice images/PDFs using Gemini 3 Flash.
  */
 export const extractSupplierData = async (fileBase64: string, mimeType: string) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const prompt = `
     ACT AS A FINANCIAL DATA EXTRACTION BOT.
-    Extract all billing details from this invoice into the following JSON format:
-    {
-      "supplierName": "Name",
-      "date": "YYYY-MM-DD",
-      "currency": "USD" | "CNY" | "INR",
-      "totalAmount": 0.00,
-      "deposit": 0.00,
-      "remainingBalance": 0.00,
-      "exchangeRate": 1.0,
-      "items": [
-        { "supplierSku": "ID", "name": "Item Name", "watts": "Wattage", "quantity": 0, "price": 0.00 }
-      ]
-    }
-    Return ONLY valid JSON.
+    Extract all billing details from this invoice.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           {
@@ -103,7 +89,33 @@ export const extractSupplierData = async (fileBase64: string, mimeType: string) 
         ]
       },
       config: {
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            supplierName: { type: Type.STRING },
+            date: { type: Type.STRING, description: "ISO 8601 Date string YYYY-MM-DD" },
+            currency: { type: Type.STRING, description: "USD | CNY | INR" },
+            totalAmount: { type: Type.NUMBER },
+            deposit: { type: Type.NUMBER },
+            remainingBalance: { type: Type.NUMBER },
+            exchangeRate: { type: Type.NUMBER },
+            items: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  supplierSku: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  watts: { type: Type.STRING },
+                  quantity: { type: Type.NUMBER },
+                  price: { type: Type.NUMBER }
+                }
+              }
+            }
+          },
+          required: ["supplierName", "date", "currency", "totalAmount", "items"]
+        }
       }
     });
 
@@ -112,9 +124,6 @@ export const extractSupplierData = async (fileBase64: string, mimeType: string) 
     return JSON.parse(text);
   } catch (error: any) {
     console.error("AI Invoice Extraction Error:", error);
-    if (error?.message?.includes('429')) {
-      throw new Error("Daily AI Quota reached. Please manually enter this invoice or try again later.");
-    }
     throw new Error("The AI could not read this file clearly. Please ensure the photo is bright and clear.");
   }
 };

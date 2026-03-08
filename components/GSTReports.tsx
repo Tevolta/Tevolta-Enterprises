@@ -47,18 +47,16 @@ const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHisto
       return sum + o.items.reduce((iSum, item) => iSum + (item.quantity * item.costPrice), 0);
     }, 0);
 
-    // 3. New Stock Investment (Total cost of stock purchased in this period)
-    const stockInvestment = filteredPurchases
-      .filter(p => p.natureOfPurchase === 'Stock')
-      .reduce((sum, p) => sum + p.investmentInr, 0);
+    // 3. New Stock Investment (Total cost of stock + other purchased in this period)
+    const stockInvestment = filteredPurchases.reduce((sum, p) => sum + p.investmentInr, 0);
 
     // 4. Operational Expenses (Purchases marked as 'Other')
     const otherExpenses = filteredPurchases
       .filter(p => p.natureOfPurchase === 'Other')
       .reduce((sum, p) => sum + p.investmentInr, 0);
 
-    // 5. Current Inventory Valuation (Synced from Master Products)
-    const closingStockValue = products.reduce((sum, p) => sum + (p.stock * p.costPrice), 0);
+    // 5. Current Inventory Valuation (Total quantity * Selling Price)
+    const closingStockValue = products.reduce((sum, p) => sum + (p.stock * p.price), 0);
 
     // 6. Net Profit Analysis
     // Net Profit = (Revenue - Tax) - COGS - OtherExpenses
@@ -102,6 +100,48 @@ const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHisto
     XLSX.writeFile(workbook, `Tevolta_Financials_${period.replace(' ', '_')}.xlsx`);
   };
 
+  const exportGSTForCA = () => {
+    const period = reportType === 'monthly' 
+      ? `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][selectedMonth]} ${selectedYear}`
+      : `Q${selectedQuarter} ${selectedYear}`;
+
+    // Prepare Sales Data for CA
+    const salesData = filteredOrders.map(o => ({
+      'Invoice Date': new Date(o.date).toLocaleDateString(),
+      'Invoice Number': o.id,
+      'Customer Name': o.customerName,
+      'Customer GSTIN': o.customerGstin || 'Unregistered',
+      'Place of Supply': o.customerState || 'Local',
+      'Taxable Value': (o.totalAmount - o.totalTax).toFixed(2),
+      'GST Rate': o.items[0]?.gstRate || 18, // Simplified for export
+      'IGST Amount': o.customerState && o.customerState !== 'Local' ? o.totalTax.toFixed(2) : '0.00',
+      'CGST Amount': !o.customerState || o.customerState === 'Local' ? (o.totalTax / 2).toFixed(2) : '0.00',
+      'SGST Amount': !o.customerState || o.customerState === 'Local' ? (o.totalTax / 2).toFixed(2) : '0.00',
+      'Total Invoice Value': o.totalAmount.toFixed(2)
+    }));
+
+    // Prepare Purchase Data for CA
+    const purchaseData = filteredPurchases.map(p => ({
+      'Purchase Date': new Date(p.date).toLocaleDateString(),
+      'Supplier Name': p.supplierName,
+      'Invoice Reference': p.invoiceRef || 'N/A',
+      'Nature of Purchase': p.natureOfPurchase,
+      'Total Investment (INR)': p.investmentInr.toFixed(2),
+      'Currency': p.currency,
+      'Exchange Rate': p.exchangeRate.toFixed(2)
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    
+    const salesSheet = XLSX.utils.json_to_sheet(salesData);
+    XLSX.utils.book_append_sheet(workbook, salesSheet, "Sales GSTR-1 Ready");
+    
+    const purchaseSheet = XLSX.utils.json_to_sheet(purchaseData);
+    XLSX.utils.book_append_sheet(workbook, purchaseSheet, "Purchase Audit");
+
+    XLSX.writeFile(workbook, `Tevolta_GST_Portal_Ready_${period.replace(' ', '_')}.xlsx`);
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-20">
       {/* Selector Header */}
@@ -140,10 +180,16 @@ const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHisto
             </div>
             <div className="flex gap-4 w-full lg:w-auto">
               <button 
+                onClick={exportGSTForCA}
+                className="flex-1 lg:flex-none px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3"
+              >
+                🏛️ GST Portal Ready Export (CA)
+              </button>
+              <button 
                 onClick={exportSummary}
                 className="flex-1 lg:flex-none px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-xl shadow-blue-500/20 flex items-center justify-center gap-3"
               >
-                📊 Export Full Summary
+                📊 Financial Summary
               </button>
               <button 
                 onClick={() => setShowSplit(!showSplit)}

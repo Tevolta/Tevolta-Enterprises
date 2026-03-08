@@ -78,6 +78,7 @@ export interface Order {
   customerPhone: string;
   customerAddress?: string;
   customerGstin?: string;
+  customerState?: string;
   date: string;
   items: OrderItem[];
   subtotal: number;
@@ -129,7 +130,50 @@ export enum ViewType {
   GST = 'gst',
   INVENTORY = 'inventory',
   SUPPLIER = 'supplier',
+  EXPENSES = 'expenses',
+  AUDIT_LOG = 'audit_log',
   USER_MANAGEMENT = 'users',
   SETTINGS = 'settings',
   INVOICE = 'invoice'
+}
+
+export interface Expense {
+  id: string;
+  date: string;
+  category: string;
+  amount: number;
+  description: string;
+  staffName: string;
+}
+
+export interface StockLog {
+  id: string;
+  productId: string;
+  productName: string;
+  change: number;
+  type: 'Purchase' | 'Sale' | 'Manual Adjustment' | 'Rollback';
+  timestamp: string;
+  referenceId: string;
+  staffName: string;
+}
+
+export interface MonthlySummary {
+  month: string; // YYYY-MM
+  totalSales: number;
+  totalCost: number;
+  totalExpenses: number;
+  netProfit: number;
+  topProduct: string;
+  totalOrders: number;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'warning' | 'success' | 'error';
+  timestamp: string;
+  isRead: boolean;
+  actionView?: ViewType;
+  staffName?: string;
 }

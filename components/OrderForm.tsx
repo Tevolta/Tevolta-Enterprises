@@ -9,7 +9,7 @@ interface OrderFormProps {
 }
 
 const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) => {
-  const [customer, setCustomer] = useState({ name: '', email: '', phone: '', address: '', gstin: '', notes: '' });
+  const [customer, setCustomer] = useState({ name: '', email: '', phone: '', address: '', gstin: '', state: 'Local', notes: '' });
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   
@@ -114,6 +114,7 @@ const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) =
       customerPhone: customer.phone,
       customerAddress: customer.address,
       customerGstin: customer.gstin,
+      customerState: customer.state,
       date: new Date().toISOString(),
       items: [...cart], 
       subtotal: subtotal,
@@ -227,9 +228,23 @@ const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) =
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Email (For Cloud Sync)</label>
                 <input required type="email" placeholder="customer@email.com" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold" value={customer.email} onChange={e => setCustomer({...customer, email: e.target.value})} />
              </div>
-             <div className="space-y-1">
-                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Customer GSTIN (Optional)</label>
-                <input placeholder="36..." className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold uppercase" value={customer.gstin} onChange={e => setCustomer({...customer, gstin: e.target.value.toUpperCase()})} />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Customer GSTIN (Optional)</label>
+                  <input placeholder="36..." className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold uppercase" value={customer.gstin} onChange={e => setCustomer({...customer, gstin: e.target.value.toUpperCase()})} />
+               </div>
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Place of Supply (State)</label>
+                  <select className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold" value={customer.state} onChange={e => setCustomer({...customer, state: e.target.value})}>
+                    <option value="Local">Local (CGST/SGST)</option>
+                    <option value="Andhra Pradesh">Andhra Pradesh</option>
+                    <option value="Telangana">Telangana</option>
+                    <option value="Karnataka">Karnataka</option>
+                    <option value="Tamil Nadu">Tamil Nadu</option>
+                    <option value="Maharashtra">Maharashtra</option>
+                    <option value="Other">Other (IGST)</option>
+                  </select>
+               </div>
              </div>
            </div>
 

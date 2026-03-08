@@ -1,6 +1,8 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import Logo from './Logo';
+import NotificationDropdown from './NotificationDropdown';
+import { AppNotification, ViewType } from '../types';
 
 interface HeaderProps {
   title: string;
@@ -11,6 +13,10 @@ interface HeaderProps {
   isAdmin?: boolean;
   isSidebarOpen: boolean;
   toggleSidebar: () => void;
+  notifications: AppNotification[];
+  onMarkNotificationRead: (id: string) => void;
+  onClearNotifications: () => void;
+  onNavigate: (view: ViewType) => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
@@ -21,8 +27,15 @@ const Header: React.FC<HeaderProps> = ({
   fileName, 
   isAdmin = true, 
   isSidebarOpen, 
-  toggleSidebar 
+  toggleSidebar,
+  notifications,
+  onMarkNotificationRead,
+  onClearNotifications,
+  onNavigate
 }) => {
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
   const getStatusConfig = () => {
     switch(syncStatus) {
       case 'testing':
@@ -108,11 +121,31 @@ const Header: React.FC<HeaderProps> = ({
 
         <div className="h-6 w-[1px] bg-slate-200"></div>
 
-        <div className="flex items-center space-x-4">
-          <button className="relative p-2 text-slate-500 hover:text-blue-600 transition-colors">
+        <div className="flex items-center space-x-4 relative">
+          <button 
+            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            className={`relative p-2 transition-colors rounded-full hover:bg-slate-100 ${isNotificationsOpen ? 'text-blue-600 bg-blue-50' : 'text-slate-500'}`}
+          >
             🔔
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center border-2 border-white">
+                {unreadCount}
+              </span>
+            )}
           </button>
+
+          {isNotificationsOpen && (
+            <NotificationDropdown 
+              notifications={notifications}
+              onClose={() => setIsNotificationsOpen(false)}
+              onMarkAsRead={onMarkNotificationRead}
+              onClearAll={onClearNotifications}
+              onNavigate={(view) => {
+                onNavigate(view);
+                setIsNotificationsOpen(false);
+              }}
+            />
+          )}
         </div>
       </div>
     </header>

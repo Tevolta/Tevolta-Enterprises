@@ -1,23 +1,31 @@
 
 import React, { useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Order, Product } from '../types';
+import { Order, Product, Expense } from '../types';
 
 interface DashboardProps {
   orders: Order[];
   products: Product[];
+  expenses: Expense[];
   lowStockThreshold: number;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ orders, products, lowStockThreshold }) => {
+const Dashboard: React.FC<DashboardProps> = ({ orders, products, expenses, lowStockThreshold }) => {
   const stats = useMemo(() => {
     const totalSales = orders.reduce((acc, o) => acc + o.totalAmount, 0);
+    const totalCost = orders.reduce((acc, o) => {
+      const orderCost = o.items.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+      return acc + orderCost;
+    }, 0);
+    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+    const netProfit = totalSales - totalCost - totalExpenses;
+    
     const orderCount = orders.length;
     const lowStockItems = products.filter(p => p.stock < lowStockThreshold).length;
     const avgOrderValue = orderCount > 0 ? totalSales / orderCount : 0;
 
-    return { totalSales, orderCount, lowStockItems, avgOrderValue };
-  }, [orders, products, lowStockThreshold]);
+    return { totalSales, totalCost, totalExpenses, netProfit, orderCount, lowStockItems, avgOrderValue };
+  }, [orders, products, expenses, lowStockThreshold]);
 
   const salesData = useMemo(() => {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -37,9 +45,9 @@ const Dashboard: React.FC<DashboardProps> = ({ orders, products, lowStockThresho
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Revenue (Incl. Tax)" value={`₹${stats.totalSales.toLocaleString()}`} icon="🇮🇳" color="blue" />
-        <StatCard title="Total Orders" value={stats.orderCount.toString()} icon="📦" color="slate" />
-        <StatCard title="Average Bill" value={`₹${stats.avgOrderValue.toFixed(0)}`} icon="📊" color="indigo" />
+        <StatCard title="Total Revenue" value={`₹${stats.totalSales.toLocaleString()}`} icon="🇮🇳" color="blue" />
+        <StatCard title="Net Profit" value={`₹${stats.netProfit.toLocaleString()}`} icon="💰" color="emerald" />
+        <StatCard title="Total Expenses" value={`₹${stats.totalExpenses.toLocaleString()}`} icon="💸" color="amber" />
         <StatCard title="Low Stock Alerts" value={stats.lowStockItems.toString()} icon="⚠️" color="red" />
       </div>
 
@@ -140,6 +148,8 @@ const StatCard: React.FC<{ title: string, value: string, icon: string, color: st
     slate: 'bg-slate-50 text-slate-600 border-slate-100',
     indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
     red: 'bg-red-50 text-red-600 border-red-100',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100',
   };
 
   return (

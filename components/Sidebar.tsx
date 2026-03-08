@@ -21,6 +21,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, isOpen, toggle,
     { id: ViewType.GST, label: 'GST Reports', icon: '🏛️', roles: ['admin'] },
     { id: ViewType.INVENTORY, label: 'Inventory', icon: '⚡', roles: ['admin'] },
     { id: ViewType.SUPPLIER, label: 'Supplier Log', icon: '🚢', roles: ['admin'] },
+    { id: ViewType.EXPENSES, label: 'Expense Tracker', icon: '💸', roles: ['admin', 'employee'] },
+    { id: ViewType.AUDIT_LOG, label: 'Stock Audit', icon: '🔍', roles: ['admin'] },
     { id: ViewType.USER_MANAGEMENT, label: 'Staff Accounts', icon: '👤', roles: ['admin'] },
     { id: ViewType.SETTINGS, label: 'Configurations', icon: '⚙️', roles: ['admin', 'employee'] },
   ];

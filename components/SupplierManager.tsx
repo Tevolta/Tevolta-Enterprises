@@ -133,6 +133,26 @@ const SupplierManager: React.FC<SupplierManagerProps> = ({
     setEditingPo(null);
   };
 
+  const handleRepeat = (po: PurchaseOrder) => {
+    setForm({
+      supplierName: po.supplierName,
+      country: po.country,
+      natureOfPurchase: po.natureOfPurchase,
+      invoiceRef: '', // Clear ref for new entry
+      date: new Date().toISOString().split('T')[0],
+      currency: po.currency,
+      exchangeRate: po.exchangeRate,
+      extraFee: po.extraFee,
+      extraFeeRemarks: po.extraFeeRemarks,
+      depositAmount: po.depositAmount,
+      items: po.items.map(item => ({
+        ...item,
+        id: Math.random().toString(36).substr(2, 9)
+      }))
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const currencySymbol = (curr: string) => curr === 'USD' ? '$' : (curr === 'CNY' ? '¥' : '₹');
 
   return (
@@ -283,6 +303,7 @@ const SupplierManager: React.FC<SupplierManagerProps> = ({
                   </td>
                   <td className="px-8 py-5 text-right">
                     <div className="flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleRepeat(po)} className="text-[9px] font-black uppercase text-amber-600 hover:underline">Repeat Purchase</button>
                       <button onClick={() => setEditingPo(po)} className="text-[9px] font-black uppercase text-blue-600 hover:underline">Edit Entry</button>
                       <button onClick={() => onRollback(po.id)} className="text-[9px] font-black uppercase text-red-400 hover:text-red-600">Rollback</button>
                     </div>
