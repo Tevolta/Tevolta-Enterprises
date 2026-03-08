@@ -89,6 +89,8 @@ export interface Order {
   totalAmount: number;
   status: OrderStatus;
   notes: string;
+  natureOfSale?: 'In-house' | 'Online';
+  platform?: string;
 }
 
 export interface PurchaseOrderItem {
@@ -134,7 +136,8 @@ export enum ViewType {
   AUDIT_LOG = 'audit_log',
   USER_MANAGEMENT = 'users',
   SETTINGS = 'settings',
-  INVOICE = 'invoice'
+  INVOICE = 'invoice',
+  AMAZON_SELLER = 'amazon_seller'
 }
 
 export interface Expense {
@@ -176,4 +179,38 @@ export interface AppNotification {
   isRead: boolean;
   actionView?: ViewType;
   staffName?: string;
+}
+
+export interface AmazonFBAShipment {
+  id: string;
+  date: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  status: 'Pending' | 'In Transit' | 'Received' | 'Cancelled';
+  referenceId: string; 
+  staffName: string;
+}
+
+export interface AmazonFBASale {
+  id: string;
+  date: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  sellingPrice: number;
+  costPrice: number;
+  gstRate: number;
+  gstAmount: number;
+  fbaFee: number;
+  profit: number;
+  settlementId: string;
+  status: 'Sold' | 'Settled' | 'Refunded';
+}
+
+export interface AmazonInventory {
+  productId: string;
+  productName: string;
+  fbaStock: number;
+  lastSync: string;
 }

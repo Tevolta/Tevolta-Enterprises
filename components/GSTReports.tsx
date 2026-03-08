@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Order, PurchaseOrder, Product } from '../types';
+import { Order, PurchaseOrder, Product, AmazonFBASale } from '../types';
 import * as XLSX from 'xlsx';
 
 interface GSTReportsProps {
@@ -8,9 +8,10 @@ interface GSTReportsProps {
   products: Product[];
   purchaseHistory: PurchaseOrder[];
   onRevertPurchase: (id: string) => void;
+  amazonSales: AmazonFBASale[];
 }
 
-const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHistory, onRevertPurchase }) => {
+const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHistory, onRevertPurchase, amazonSales }) => {
   const [reportType, setReportType] = useState<'monthly' | 'quarterly'>('monthly');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -37,23 +38,41 @@ const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHisto
     });
   }, [purchaseHistory, reportType, selectedYear, selectedMonth, selectedQuarter]);
 
+  const filteredAmazonSales = useMemo(() => {
+    return amazonSales.filter(sale => {
+      const saleDate = new Date(sale.date);
+      if (saleDate.getFullYear() !== selectedYear) return false;
+      if (reportType === 'monthly') return saleDate.getMonth() === selectedMonth;
+      const quarter = Math.floor(saleDate.getMonth() / 3) + 1;
+      return quarter === selectedQuarter;
+    });
+  }, [amazonSales, reportType, selectedYear, selectedMonth, selectedQuarter]);
+
   const profitStats = useMemo(() => {
     // 1. Revenue & Sales Tax
-    const grossRevenue = filteredOrders.reduce((sum, o) => sum + o.totalAmount, 0);
-    const taxCollected = filteredOrders.reduce((sum, o) => sum + o.totalTax, 0);
+    const orderRevenue = filteredOrders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const amazonRevenue = filteredAmazonSales.reduce((sum, s) => sum + (s.sellingPrice * s.quantity), 0);
+    const grossRevenue = orderRevenue + amazonRevenue;
+
+    const orderTax = filteredOrders.reduce((sum, o) => sum + o.totalTax, 0);
+    const amazonTax = filteredAmazonSales.reduce((sum, s) => sum + s.gstAmount, 0);
+    const taxCollected = orderTax + amazonTax;
     
-    // 2. Cost of Goods Sold (COGS - Cost incurred specifically for the sales made)
-    const cogs = filteredOrders.reduce((sum, o) => {
+    // 2. Cost of Goods Sold (COGS)
+    const orderCogs = filteredOrders.reduce((sum, o) => {
       return sum + o.items.reduce((iSum, item) => iSum + (item.quantity * item.costPrice), 0);
     }, 0);
+    const amazonCogs = filteredAmazonSales.reduce((sum, s) => sum + (s.quantity * s.costPrice), 0);
+    const cogs = orderCogs + amazonCogs;
 
-    // 3. New Stock Investment (Total cost of stock + other purchased in this period)
+    // 3. New Stock Investment
     const stockInvestment = filteredPurchases.reduce((sum, p) => sum + p.investmentInr, 0);
 
-    // 4. Operational Expenses (Purchases marked as 'Other')
+    // 4. Operational Expenses (Purchases marked as 'Other' + Amazon FBA Fees)
+    const amazonFees = filteredAmazonSales.reduce((sum, s) => sum + s.fbaFee, 0);
     const otherExpenses = filteredPurchases
       .filter(p => p.natureOfPurchase === 'Other')
-      .reduce((sum, p) => sum + p.investmentInr, 0);
+      .reduce((sum, p) => sum + p.investmentInr, 0) + amazonFees;
 
     // 5. Current Inventory Valuation (Total quantity * Selling Price)
     const closingStockValue = products.reduce((sum, p) => sum + (p.stock * p.price), 0);
@@ -107,17 +126,34 @@ const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHisto
 
     // Prepare Sales Data for CA
     const salesData = filteredOrders.map(o => ({
+      'Source': 'Direct Sale',
       'Invoice Date': new Date(o.date).toLocaleDateString(),
       'Invoice Number': o.id,
       'Customer Name': o.customerName,
       'Customer GSTIN': o.customerGstin || 'Unregistered',
       'Place of Supply': o.customerState || 'Local',
       'Taxable Value': (o.totalAmount - o.totalTax).toFixed(2),
-      'GST Rate': o.items[0]?.gstRate || 18, // Simplified for export
+      'GST Rate': o.items[0]?.gstRate || 18,
       'IGST Amount': o.customerState && o.customerState !== 'Local' ? o.totalTax.toFixed(2) : '0.00',
       'CGST Amount': !o.customerState || o.customerState === 'Local' ? (o.totalTax / 2).toFixed(2) : '0.00',
       'SGST Amount': !o.customerState || o.customerState === 'Local' ? (o.totalTax / 2).toFixed(2) : '0.00',
       'Total Invoice Value': o.totalAmount.toFixed(2)
+    }));
+
+    // Add Amazon Sales to CA Export
+    const amazonSalesData = filteredAmazonSales.map(s => ({
+      'Source': 'Amazon FBA',
+      'Invoice Date': new Date(s.date).toLocaleDateString(),
+      'Invoice Number': s.settlementId || s.id,
+      'Customer Name': 'Amazon Customer',
+      'Customer GSTIN': 'Unregistered',
+      'Place of Supply': 'Amazon Marketplace',
+      'Taxable Value': (s.sellingPrice * s.quantity - s.gstAmount).toFixed(2),
+      'GST Rate': s.gstRate,
+      'IGST Amount': s.gstAmount.toFixed(2),
+      'CGST Amount': '0.00',
+      'SGST Amount': '0.00',
+      'Total Invoice Value': (s.sellingPrice * s.quantity).toFixed(2)
     }));
 
     // Prepare Purchase Data for CA
@@ -133,7 +169,7 @@ const GSTReports: React.FC<GSTReportsProps> = ({ orders, products, purchaseHisto
 
     const workbook = XLSX.utils.book_new();
     
-    const salesSheet = XLSX.utils.json_to_sheet(salesData);
+    const salesSheet = XLSX.utils.json_to_sheet([...salesData, ...amazonSalesData]);
     XLSX.utils.book_append_sheet(workbook, salesSheet, "Sales GSTR-1 Ready");
     
     const purchaseSheet = XLSX.utils.json_to_sheet(purchaseData);

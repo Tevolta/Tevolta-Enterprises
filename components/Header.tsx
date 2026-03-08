@@ -15,6 +15,7 @@ interface HeaderProps {
   toggleSidebar: () => void;
   notifications: AppNotification[];
   onMarkNotificationRead: (id: string) => void;
+  onDismissNotification: (id: string) => void;
   onClearNotifications: () => void;
   onNavigate: (view: ViewType) => void;
 }
@@ -30,6 +31,7 @@ const Header: React.FC<HeaderProps> = ({
   toggleSidebar,
   notifications,
   onMarkNotificationRead,
+  onDismissNotification,
   onClearNotifications,
   onNavigate
 }) => {
@@ -139,6 +141,7 @@ const Header: React.FC<HeaderProps> = ({
               notifications={notifications}
               onClose={() => setIsNotificationsOpen(false)}
               onMarkAsRead={onMarkNotificationRead}
+              onDismiss={onDismissNotification}
               onClearAll={onClearNotifications}
               onNavigate={(view) => {
                 onNavigate(view);

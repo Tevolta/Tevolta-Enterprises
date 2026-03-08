@@ -6,6 +6,7 @@ interface NotificationDropdownProps {
   notifications: AppNotification[];
   onClose: () => void;
   onMarkAsRead: (id: string) => void;
+  onDismiss: (id: string) => void;
   onClearAll: () => void;
   onNavigate: (view: ViewType) => void;
 }
@@ -14,6 +15,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   notifications,
   onClose,
   onMarkAsRead,
+  onDismiss,
   onClearAll,
   onNavigate
 }) => {
@@ -70,9 +72,20 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
                   <h4 className={`text-xs font-black uppercase tracking-tight ${!notification.isRead ? 'text-blue-700' : 'text-slate-800'}`}>
                     {notification.title}
                   </h4>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase">
-                    {new Date(notification.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-bold text-slate-400 uppercase">
+                      {new Date(notification.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDismiss(notification.id);
+                      }}
+                      className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition-all text-[8px] opacity-0 group-hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
                 <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
                   {notification.message}

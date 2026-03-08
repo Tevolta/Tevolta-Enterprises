@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ViewType, Product, Order, User, CompanyConfig, SupplierMapping, WattMapping, PurchaseOrder, OrderItem, AppNotification, Expense, StockLog } from './types';
+import { ViewType, Product, Order, User, CompanyConfig, SupplierMapping, WattMapping, PurchaseOrder, OrderItem, AppNotification, Expense, StockLog, AmazonInventory, AmazonFBAShipment, AmazonFBASale } from './types';
 import { INITIAL_PRODUCTS, INITIAL_USERS, INITIAL_COMPANY_CONFIG } from './constants';
 import Dashboard from './components/Dashboard';
 import OrdersList from './components/OrdersList';
@@ -18,6 +18,7 @@ import UserProfile from './components/UserProfile';
 import LoginPage from './components/LoginPage';
 import ExpenseTracker from './components/ExpenseTracker';
 import StockAuditLog from './components/StockAuditLog';
+import AmazonSeller from './components/AmazonSeller';
 import { findOrCreateDriveFile, uploadToDrive, downloadFromDrive } from './services/cloudStorageService';
 import { encryptPassword, decryptPassword } from './services/encryptionService';
 
@@ -84,6 +85,19 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [amazonInventory, setAmazonInventory] = useState<AmazonInventory[]>(() => {
+    const saved = localStorage.getItem('tevolta_amazon_inventory');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [amazonShipments, setAmazonShipments] = useState<AmazonFBAShipment[]>(() => {
+    const saved = localStorage.getItem('tevolta_amazon_shipments');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [amazonSales, setAmazonSales] = useState<AmazonFBASale[]>(() => {
+    const saved = localStorage.getItem('tevolta_amazon_sales');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   const [currentView, setCurrentView] = useState<ViewType>(ViewType.DASHBOARD);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -115,7 +129,10 @@ const App: React.FC = () => {
     localStorage.setItem('tevolta_notifications', JSON.stringify(appNotifications));
     localStorage.setItem('tevolta_expenses', JSON.stringify(expenses));
     localStorage.setItem('tevolta_stock_logs', JSON.stringify(stockLogs));
-  }, [users, products, orders, purchaseOrders, pendingInventory, companyConfig, supplierMappings, wattMappings, lowStockThreshold, isCloudEnabled, appNotifications, expenses, stockLogs]);
+    localStorage.setItem('tevolta_amazon_inventory', JSON.stringify(amazonInventory));
+    localStorage.setItem('tevolta_amazon_shipments', JSON.stringify(amazonShipments));
+    localStorage.setItem('tevolta_amazon_sales', JSON.stringify(amazonSales));
+  }, [users, products, orders, purchaseOrders, pendingInventory, companyConfig, supplierMappings, wattMappings, lowStockThreshold, isCloudEnabled, appNotifications, expenses, stockLogs, amazonInventory, amazonShipments, amazonSales]);
 
   const addNotification = useCallback((title: string, message: string, type: 'info' | 'warning' | 'success' | 'error' = 'info', actionView?: ViewType, staffName?: string) => {
     const newNotif: AppNotification = {
@@ -131,6 +148,10 @@ const App: React.FC = () => {
     setAppNotifications(prev => [newNotif, ...prev].slice(0, 50)); // Keep last 50
   }, []);
 
+  const handleDismissNotification = useCallback((id: string) => {
+    setAppNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+
   const logStockMovement = useCallback((productId: string, productName: string, change: number, type: StockLog['type'], referenceId: string) => {
     const newLog: StockLog = {
       id: Math.random().toString(36).substr(2, 9),
@@ -144,6 +165,71 @@ const App: React.FC = () => {
     };
     setStockLogs(prev => [newLog, ...prev].slice(0, 500)); // Keep last 500 logs
   }, [user]);
+
+  const handleSendToFBA = useCallback((productId: string, quantity: number, referenceId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product || product.stock < quantity) {
+      setNotification({ message: 'Insufficient stock in main inventory', type: 'error' });
+      return;
+    }
+
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, stock: p.stock - quantity } : p));
+    logStockMovement(productId, product.name, -quantity, 'Manual Adjustment', `FBA Shipment: ${referenceId}`);
+
+    setAmazonInventory(prev => {
+      const existing = prev.find(i => i.productId === productId);
+      if (existing) {
+        return prev.map(i => i.productId === productId 
+          ? { ...i, fbaStock: i.fbaStock + quantity, lastSync: new Date().toISOString() } 
+          : i);
+      }
+      return [...prev, {
+        productId,
+        productName: product.name,
+        fbaStock: quantity,
+        lastSync: new Date().toISOString()
+      }];
+    });
+
+    const newShipment: AmazonFBAShipment = {
+      id: Math.random().toString(36).substr(2, 9),
+      date: new Date().toISOString(),
+      productId,
+      productName: product.name,
+      quantity,
+      status: 'In Transit',
+      referenceId,
+      staffName: user?.firstName || 'System'
+    };
+    setAmazonShipments(prev => [newShipment, ...prev]);
+    setNotification({ message: `Successfully sent ${quantity} units to FBA`, type: 'success' });
+  }, [products, logStockMovement, user]);
+
+  const handleRecordFBASale = useCallback((saleData: Omit<AmazonFBASale, 'id' | 'profit' | 'gstAmount'>) => {
+    const inv = amazonInventory.find(i => i.productId === saleData.productId);
+    if (!inv || inv.fbaStock < saleData.quantity) {
+      setNotification({ message: 'Insufficient stock in FBA inventory', type: 'error' });
+      return;
+    }
+
+    const gstAmount = (saleData.sellingPrice * saleData.quantity * saleData.gstRate) / 100;
+    const profit = (saleData.sellingPrice * saleData.quantity) - (saleData.costPrice * saleData.quantity) - gstAmount - saleData.fbaFee;
+
+    const newSale: AmazonFBASale = {
+      ...saleData,
+      id: Math.random().toString(36).substr(2, 9),
+      gstAmount,
+      profit
+    };
+
+    setAmazonInventory(prev => prev.map(i => i.productId === saleData.productId 
+      ? { ...i, fbaStock: i.fbaStock - saleData.quantity, lastSync: new Date().toISOString() } 
+      : i));
+
+    setAmazonSales(prev => [newSale, ...prev]);
+    logStockMovement(saleData.productId, saleData.productName, -saleData.quantity, 'Sale', `Amazon FBA Sale: ${saleData.settlementId}`);
+    setNotification({ message: 'Amazon FBA sale recorded successfully', type: 'success' });
+  }, [amazonInventory, logStockMovement]);
 
   // Low Stock Monitoring
   useEffect(() => {
@@ -584,6 +670,7 @@ const App: React.FC = () => {
           onConnect={reconnectGoogle}
           notifications={appNotifications}
           onMarkNotificationRead={(id) => setAppNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))}
+          onDismissNotification={handleDismissNotification}
           onClearNotifications={() => setAppNotifications([])}
           onNavigate={setCurrentView}
         />
@@ -591,11 +678,22 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto space-y-6">
             {currentView === ViewType.DASHBOARD && <Dashboard orders={orders} products={products} expenses={expenses} lowStockThreshold={lowStockThreshold} />}
             {currentView === ViewType.ORDERS && <OrdersList orders={orders} onViewInvoice={(o) => { setSelectedOrder(o); setLastOrderWasNew(false); setCurrentView(ViewType.INVOICE); }} onDeleteOrder={handleDeleteOrder} onNewOrder={() => { setSelectedOrder(null); setLastOrderWasNew(false); setCurrentView(ViewType.INVOICE); }} isAdmin={isAdmin} />}
-            {currentView === ViewType.GST && <GSTReports orders={orders} products={products} purchaseHistory={purchaseOrders} onRevertPurchase={handleRevertImport} />}
+            {currentView === ViewType.GST && <GSTReports orders={orders} products={products} purchaseHistory={purchaseOrders} onRevertPurchase={handleRevertImport} amazonSales={amazonSales} />}
             {currentView === ViewType.INVENTORY && <InventoryManager products={products} pendingInventory={pendingInventory} lowStockThreshold={lowStockThreshold} wattMappings={wattMappings} onUpdate={(p, oldId) => handleUpdateProduct(p, oldId)} onDelete={handleDeleteProduct} onAdd={handleAddProduct} onFinalizeReview={handleFinalizeInventoryReview} onUpdatePending={(po) => setPendingInventory(pendingInventory.map(p => p.id === po.id ? po : p))} onDeletePending={(id) => setPendingInventory(pendingInventory.filter(p => p.id !== id))} isAdmin={isAdmin} />}
             {currentView === ViewType.SUPPLIER && isAdmin && <SupplierManager products={products} purchaseHistory={purchaseOrders} onAddToReview={handleAddToReview} onUpdatePurchase={(po) => setPurchaseOrders(prev => prev.map(p => p.id === po.id ? po : p))} onRollback={handleRevertImport} />}
             {currentView === ViewType.EXPENSES && <ExpenseTracker expenses={expenses} onAdd={(e) => setExpenses([e, ...expenses])} onDelete={(id) => setExpenses(expenses.filter(x => x.id !== id))} user={user} isAdmin={isAdmin} />}
             {currentView === ViewType.AUDIT_LOG && isAdmin && <StockAuditLog logs={stockLogs} onClear={() => setStockLogs([])} isAdmin={isAdmin} />}
+            {currentView === ViewType.AMAZON_SELLER && (
+              <AmazonSeller 
+                products={products}
+                amazonInventory={amazonInventory}
+                amazonShipments={amazonShipments}
+                amazonSales={amazonSales}
+                onSendToFBA={handleSendToFBA}
+                onRecordFBASale={handleRecordFBASale}
+                user={user}
+              />
+            )}
             {currentView === ViewType.USER_MANAGEMENT && isAdmin && <AdminUserManagement users={users} onAddUser={(u) => setUsers([...users, u])} onUpdateUser={(u) => setUsers(users.map(x => x.id === u.id ? u : x))} onDeleteUser={(id) => setUsers(users.filter(x => x.id !== id))} />}
             {currentView === ViewType.INVOICE && (selectedOrder ? <InvoiceView order={selectedOrder} onBack={() => setCurrentView(ViewType.ORDERS)} companyConfig={companyConfig} autoPrint={lastOrderWasNew} /> : <OrderForm products={products} onSubmit={handleCreateOrder} onCancel={() => setCurrentView(ViewType.ORDERS)} />)}
             {currentView === ViewType.SETTINGS && <Settings products={products} orders={orders} users={users} supplierMappings={supplierMappings} onUpdateMappings={setSupplierMappings} wattMappings={wattMappings} onUpdateWattMappings={setWattMappings} onDataImport={() => {}} syncStatus={hasCloudToken ? 'synced' : 'testing'} onOpenFile={handleManualRefresh} onReconnect={reconnectGoogle} isAdmin={isAdmin} lowStockThreshold={lowStockThreshold} onUpdateThreshold={setLowStockThreshold} companyConfig={companyConfig} onUpdateCompanyConfig={setCompanyConfig} version={APP_VERSION} onExportData={handleExportData} onImportData={handleImportData} />}
@@ -604,9 +702,17 @@ const App: React.FC = () => {
         <AIAssistant orders={orders} inventory={products} />
         {notification && (
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] animate-in slide-in-from-bottom-5">
-            <div className={`px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border ${notification.type === 'error' ? 'bg-red-50 border-red-100 text-red-600' : notification.type === 'loading' ? 'bg-blue-50 border-blue-100 text-blue-600' : 'bg-green-50 border-green-100 text-green-700'}`}>
+            <div className={`px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border relative ${notification.type === 'error' ? 'bg-red-50 border-red-100 text-red-600' : notification.type === 'loading' ? 'bg-blue-50 border-blue-100 text-blue-600' : 'bg-green-50 border-green-100 text-green-700'}`}>
               {notification.type === 'loading' && <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>}
               <span className="text-[10px] font-black uppercase tracking-widest">{notification.message}</span>
+              {notification.type !== 'loading' && (
+                <button 
+                  onClick={() => setNotification(null)}
+                  className="ml-2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-black/5 transition-colors text-[10px]"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
         )}

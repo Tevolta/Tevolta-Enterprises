@@ -9,7 +9,17 @@ interface OrderFormProps {
 }
 
 const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) => {
-  const [customer, setCustomer] = useState({ name: '', email: '', phone: '', address: '', gstin: '', state: 'Local', notes: '' });
+  const [customer, setCustomer] = useState({ 
+    name: '', 
+    email: '', 
+    phone: '', 
+    address: '', 
+    gstin: '', 
+    state: 'Local', 
+    notes: '',
+    natureOfSale: 'In-house' as 'In-house' | 'Online',
+    platform: ''
+  });
   const [cart, setCart] = useState<OrderItem[]>([]);
   const [productSearch, setProductSearch] = useState('');
   
@@ -124,7 +134,9 @@ const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) =
       totalTax: totalTax,
       totalAmount: totalAmount,
       status: 'Completed',
-      notes: customer.notes
+      notes: customer.notes,
+      natureOfSale: customer.natureOfSale,
+      platform: customer.natureOfSale === 'Online' ? customer.platform : undefined
     };
     onSubmit(newOrder);
   };
@@ -245,6 +257,22 @@ const OrderForm: React.FC<OrderFormProps> = ({ products, onSubmit, onCancel }) =
                     <option value="Other">Other (IGST)</option>
                   </select>
                </div>
+             </div>
+
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Nature of Sale</label>
+                  <select className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold" value={customer.natureOfSale} onChange={e => setCustomer({...customer, natureOfSale: e.target.value as any})}>
+                    <option value="In-house">In-house</option>
+                    <option value="Online">Online</option>
+                  </select>
+               </div>
+               {customer.natureOfSale === 'Online' && (
+                 <div className="space-y-1 animate-in slide-in-from-left-2 duration-300">
+                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Platform (Amazon, Flipkart etc)</label>
+                   <input placeholder="e.g. Amazon" className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 font-bold" value={customer.platform} onChange={e => setCustomer({...customer, platform: e.target.value})} />
+                 </div>
+               )}
              </div>
            </div>
 
